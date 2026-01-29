@@ -1,0 +1,31 @@
+import sys
+import unittest
+from inspect import getdoc
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from tool_context_relay.agent import build_agent
+from tool_context_relay.mcp_deepcheck import fun_deep_check
+from tool_context_relay.mcp_yt import fun_get_transcript
+
+
+class AgentTests(unittest.TestCase):
+    def test_agent_tools_expose_underlying_docstrings(self):
+        agent = build_agent(model="test")
+        tools_by_name = {tool.name: tool for tool in agent.tools}
+
+        yt_tool = tools_by_name["yt_transcribe"]
+        self.assertEqual(yt_tool.description, getdoc(fun_get_transcript).splitlines()[0])
+        self.assertEqual(
+            yt_tool.params_json_schema["properties"]["video_id"]["description"],
+            "The ID of the YouTube video.",
+        )
+
+        deep_tool = tools_by_name["deep_check"]
+        self.assertEqual(deep_tool.description, getdoc(fun_deep_check).splitlines()[0])
+        self.assertEqual(
+            deep_tool.params_json_schema["properties"]["text"]["description"],
+            "The text to be checked.",
+        )
+

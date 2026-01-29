@@ -1,0 +1,19 @@
+[project]
+name = "tool-context-relay"
+version = "0.1.0"
+description = "Minimal CLI app demonstrating OpenAI Agents SDK tool calls."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "openai>=2.0.0",
+    "openai-agents>=0.7.0",
+    "python-dotenv>=1.2.1",
+]
+
+[project.scripts]
+tool-context-relay = "tool_context_relay.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
