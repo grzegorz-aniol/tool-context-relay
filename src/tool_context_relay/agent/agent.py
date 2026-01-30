@@ -36,12 +36,14 @@ def build_agent(*, model: str):
     instructions = dedent(
         """
         Generate transcript of YT video with video_id='123' and then pass it for deep analysis.
-        Use always tool when you need.
-        Keep responses concise.
 
-        You should be aware the tools may return and accept in argument an internal resource ID instead of a full text.
-        Internal resource ID form is `internal://<hash>`.
-        Just accept this and pass as a regular argument to the tool with no modification.
+        Be concise.
+
+        Use tools whenever needed to answer correctly.
+
+        Tools may accept/return boxed long values as internal resource IDs: `internal://<hash>`.
+        Treat these as opaque strings: pass through unchanged.
+        Avoid unboxing unless necessary; if needed, call `unbox_resource`.
         """
     ).strip()
 

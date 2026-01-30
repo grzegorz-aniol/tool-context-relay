@@ -11,6 +11,7 @@ _ANSI_YELLOW = "\x1b[33m"
 _ANSI_MAGENTA = "\x1b[35m"
 _ANSI_DEFAULT = "\x1b[0m"
 
+
 def _resolved_width(*, width: int | None = None) -> int:
     if width is not None:
         return max(20, width)
@@ -91,6 +92,8 @@ def _wrap_prefixed(*, prefix: str, text: str, width: int) -> str:
 def _emit(*, prefix: str, color: str, text: str, stream, width: int | None = None) -> None:
     resolved_width = _resolved_width(width=width)
     message = _wrap_prefixed(prefix=prefix, text=text, width=resolved_width)
+    # Always separate chat parts with an unstyled blank line.
+    stream.write("\n")
     if _color_enabled(stream=stream):
         stream.write(f"{color}{message}{_ANSI_RESET}\n")
     else:
@@ -100,6 +103,7 @@ def _emit(*, prefix: str, color: str, text: str, stream, width: int | None = Non
 
 def emit_user(text: str, *, stream=None, width: int | None = None) -> None:
     _emit(prefix="USER:", color=_ANSI_CYAN, text=text, stream=stream or sys.stdout, width=width)
+
 
 def emit_system(text: str, *, stream=None, width: int | None = None) -> None:
     _emit(prefix="SYSTEM:", color=_ANSI_CYAN, text=text, stream=stream or sys.stdout, width=width)

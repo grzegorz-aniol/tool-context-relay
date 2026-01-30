@@ -16,6 +16,12 @@ class _TtyStringIO(io.StringIO):
 
 
 class PrettyTests(unittest.TestCase):
+    def test_prefix_is_preceded_by_blank_line(self):
+        stream = io.StringIO()
+        with patch.dict(os.environ, {"TOOL_CONTEXT_RELAY_COLOR": "never"}, clear=True):
+            emit_user("hello", stream=stream, width=120)
+        self.assertTrue(stream.getvalue().startswith("\nUSER:"))
+
     def test_wraps_to_width(self):
         stream = io.StringIO()
         long_text = " ".join(["word"] * 50)
@@ -29,7 +35,7 @@ class PrettyTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             emit_tool_request("hello", stream=stream, width=120)
         out = stream.getvalue()
-        self.assertTrue(out.startswith("\x1b[33m"))
+        self.assertTrue(out.startswith("\n\x1b[33m"))
         self.assertTrue(out.endswith("\x1b[0m\n"))
 
     def test_no_color_disables_colors(self):
@@ -44,7 +50,7 @@ class PrettyTests(unittest.TestCase):
         with patch.dict(os.environ, {"FORCE_COLOR": "1"}, clear=True):
             emit_tool_request("hello", stream=stream, width=120)
         out = stream.getvalue()
-        self.assertTrue(out.startswith("\x1b[33m"))
+        self.assertTrue(out.startswith("\n\x1b[33m"))
         self.assertTrue(out.endswith("\x1b[0m\n"))
 
     def test_color_mode_never_disables_on_tty(self):
