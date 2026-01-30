@@ -35,3 +35,9 @@ Seed initial context:
 Run without syncing or activating a local venv:
 
 `uv tool run --from . tool-context-relay "Transcribe 123" --set name=Ada`
+
+## Codex MCP (project-scoped)
+
+This repo includes a project-local Codex config at `.codex/config.toml` that points to a local MCP server:
+
+- `http://127.0.0.1:64342/sse`

@@ -12,7 +12,10 @@ def fun_deep_check(text: str) -> str:
     Returns:
         str: A summary of the analysis.
     """
-    emit_default(f"Performing deep check on the provided text. Length: {len(text)}, Starting: '{text[:30]}...'")
-    result = f"Analyzed text {len(text)} characters long. No issues found. A summary {text[:50]}"
-    emit_default(f"Deep check completed. Emitting result of length {len(result)}.")
+    emit_default(
+        f"Performing deep check on the provided text. Length: {len(text)}, Starting: '{text[:30]}...'",
+        group=fun_deep_check.__name__,
+    )
+    result = f"Analyzed text {len(text)} characters long. No issues found. Beginning: ##{text[:50]}...##"
+    emit_default(f"Deep check completed. Emitting result of length {len(result)}.", group=fun_deep_check.__name__)
     return result

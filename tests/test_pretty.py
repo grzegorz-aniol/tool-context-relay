@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tool_context_relay.pretty import emit_assistant, emit_tool_request, emit_user
+from tool_context_relay.pretty import emit_assistant, emit_default, emit_tool_request, emit_tool_response, emit_user
 
 
 class _TtyStringIO(io.StringIO):
@@ -20,7 +20,7 @@ class PrettyTests(unittest.TestCase):
         stream = io.StringIO()
         with patch.dict(os.environ, {"TOOL_CONTEXT_RELAY_COLOR": "never"}, clear=True):
             emit_user("hello", stream=stream, width=120)
-        self.assertTrue(stream.getvalue().startswith("\nUSER:"))
+        self.assertTrue(stream.getvalue().startswith("\nUSER:\n\nhello\n"))
 
     def test_wraps_to_width(self):
         stream = io.StringIO()
@@ -28,6 +28,8 @@ class PrettyTests(unittest.TestCase):
         emit_user(long_text, stream=stream, width=40)
         out = stream.getvalue().rstrip("\n")
         for line in out.splitlines():
+            if line in {"", "USER:"}:
+                continue
             self.assertLessEqual(len(line), 40)
 
     def test_colors_enabled_on_tty(self):
@@ -35,8 +37,7 @@ class PrettyTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             emit_tool_request("hello", stream=stream, width=120)
         out = stream.getvalue()
-        self.assertTrue(out.startswith("\n\x1b[33m"))
-        self.assertTrue(out.endswith("\x1b[0m\n"))
+        self.assertTrue(out.startswith("\n\x1b[33mTOOL_CALL:\x1b[0m\n\n\x1b[33mhello\x1b[0m\n"))
 
     def test_no_color_disables_colors(self):
         stream = _TtyStringIO()
@@ -50,8 +51,7 @@ class PrettyTests(unittest.TestCase):
         with patch.dict(os.environ, {"FORCE_COLOR": "1"}, clear=True):
             emit_tool_request("hello", stream=stream, width=120)
         out = stream.getvalue()
-        self.assertTrue(out.startswith("\n\x1b[33m"))
-        self.assertTrue(out.endswith("\x1b[0m\n"))
+        self.assertTrue(out.startswith("\n\x1b[33mTOOL_CALL:\x1b[0m\n\n\x1b[33mhello\x1b[0m\n"))
 
     def test_color_mode_never_disables_on_tty(self):
         stream = _TtyStringIO()
@@ -66,3 +66,30 @@ class PrettyTests(unittest.TestCase):
             emit_assistant("hello", stream=stream, width=120)
         out = stream.getvalue()
         self.assertNotIn("\x1b[", out)
+
+    def test_tool_result_multiline_is_single_event(self):
+        stream = io.StringIO()
+        with patch.dict(os.environ, {"TOOL_CONTEXT_RELAY_COLOR": "never"}, clear=True):
+            emit_tool_response("line1\nline2", stream=stream, width=120)
+        out = stream.getvalue()
+        self.assertEqual(out.count("TOOL_RESULT:"), 1)
+        self.assertIn("\nTOOL_RESULT:\n\nline1\nline2\n", out)
+
+    def test_default_group_combines_without_empty_lines(self):
+        stream = io.StringIO()
+        with patch.dict(os.environ, {"TOOL_CONTEXT_RELAY_COLOR": "never"}, clear=True):
+            emit_default("Fetching transcript for video ID: 123", group="fun_get_transcript", stream=stream, width=120)
+            emit_default(
+                "Transcript generated. Length: 1800, Starting: 'For a long time, YouTube has b...'",
+                group="fun_get_transcript",
+                stream=stream,
+                width=120,
+            )
+        out = stream.getvalue()
+        self.assertEqual(out.count("fun_get_transcript:"), 1)
+        self.assertIn(
+            "\nfun_get_transcript:\n"
+            "Fetching transcript for video ID: 123\n"
+            "Transcript generated. Length: 1800, Starting: 'For a long time, YouTube has b...'\n",
+            out,
+        )

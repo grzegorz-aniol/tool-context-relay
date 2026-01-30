@@ -14,11 +14,14 @@ def fun_get_transcript(video_id: str) -> str:
     Returns:
         str: The transcript of the video.
     """
-    emit_default(f"Fetching transcript for video ID: {video_id}")
+    emit_default(f"Fetching transcript for video ID: {video_id}", group=fun_get_transcript.__name__)
 
     transcript = "For a long time, YouTube has been a platform where people share videos on various topics." * 20
     transcript += "\n" + str(hash(video_id)) # Ignore this: I just want to vary the transcript a bit based on video_id
 
-    emit_default(f"Transcript generated. Length: {len(transcript)}, Starting: '{transcript[:30]}...'")
+    emit_default(
+        f"Transcript generated. Length: {len(transcript)}, Starting: '{transcript[:30]}...'",
+        group=fun_get_transcript.__name__,
+    )
 
     return transcript
