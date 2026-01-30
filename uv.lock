@@ -644,7 +644,7 @@ wheels = [
 [[package]]
 name = "tool-context-relay"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "openai" },
     { name = "openai-agents" },

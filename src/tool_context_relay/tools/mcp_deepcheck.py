@@ -1,6 +1,8 @@
-from tool_context_relay.pretty import emit_default
+from tool_context_relay.agent.pretty import emit_default
 
 
+# This function simulates a deep check analysis on the provided text.
+# It logs input text characteristics (len, prefix) to be sure the text is received correctly,
 def fun_deep_check(text: str) -> str:
     """
     Perform deep analysis of a provided text.

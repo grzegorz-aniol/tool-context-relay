@@ -1,10 +1,11 @@
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tool_context_relay.tool_relay import tool_relay, unwrap_body
+from tool_context_relay.tools.tool_relay import tool_relay, unbox_value
 
 
 class ToolsTests(unittest.TestCase):
@@ -20,4 +21,15 @@ class ToolsTests(unittest.TestCase):
 
         resource_id = tool_relay(big, ["x"])
         self.assertTrue(resource_id.startswith("internal://"))
-        self.assertEqual(unwrap_body(resource_id), "x" * 2048)
+        self.assertEqual(unbox_value(resource_id), "x" * 2048)
+
+    def test_tool_relay_resource_id_never_contains_negative_sign(self):
+        def big(value: str) -> str:
+            return value * 2048
+
+        with patch("builtins.hash", return_value=-1):
+            resource_id = tool_relay(big, ["x"])
+
+        self.assertTrue(resource_id.startswith("internal://"))
+        self.assertNotIn("-", resource_id)
+        self.assertEqual(unbox_value(resource_id), "x" * 2048)

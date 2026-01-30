@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from tool_context_relay.main import run_once
-from tool_context_relay.pretty import emit_assistant, emit_user
 
 
 def _parse_kv(pairs: list[str]) -> dict[str, str]:
@@ -25,6 +25,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "prompt",
         help="User prompt to run once (the agent may call tools).",
+    )
+    parser.add_argument(
+        "--color",
+        default="auto",
+        choices=["auto", "always", "never"],
+        help="Color output mode (default: %(default)s).",
     )
     parser.add_argument(
         "--model",
@@ -49,6 +55,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
+    # Propagate to the pretty emitter, and transitively to tool hooks.
+    os.environ["TOOL_CONTEXT_RELAY_COLOR"] = args.color
+
     try:
         initial_kv = _parse_kv(args.set)
     except ValueError as e:
@@ -58,8 +67,6 @@ def main(argv: list[str] | None = None) -> int:
     if not args.prompt.strip():
         print("Prompt must not be empty.", file=sys.stderr)
         return 2
-
-    emit_user(args.prompt)
 
     try:
         output, context = run_once(prompt=args.prompt, model=args.model, initial_kv=initial_kv)
@@ -72,7 +79,6 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         raise
 
-    emit_assistant(output)
     if args.dump_context:
         print(json.dumps(context.kv, ensure_ascii=False, sort_keys=True), file=sys.stderr)
     return 0

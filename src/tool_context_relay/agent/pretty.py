@@ -23,10 +23,42 @@ def _resolved_width(*, width: int | None = None) -> int:
     return 120
 
 
-def _color_enabled(*, stream) -> bool:
-    if os.getenv("NO_COLOR") is not None:
+def _is_env_var_truthy(name: str) -> bool:
+    value = os.getenv(name)
+    if value is None:
         return False
+    normalized = value.strip().lower()
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return True
+
+
+def _color_mode() -> str:
+    mode = os.getenv("TOOL_CONTEXT_RELAY_COLOR")
+    if mode is not None:
+        normalized = mode.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return "always"
+        if normalized in {"0", "false", "no", "off"}:
+            return "never"
+        if normalized in {"always", "auto", "never"}:
+            return normalized
+    if os.getenv("NO_COLOR") is not None:
+        return "never"
     if os.getenv("TOOL_CONTEXT_RELAY_NO_COLOR") is not None:
+        return "never"
+    if _is_env_var_truthy("FORCE_COLOR"):
+        return "always"
+    return "auto"
+
+
+def _color_enabled(*, stream) -> bool:
+    mode = _color_mode()
+    if mode == "always":
+        return True
+    if mode == "never":
+        return False
+    if os.getenv("TERM", "").strip().lower() == "dumb":
         return False
     return bool(getattr(stream, "isatty", lambda: False)())
 
@@ -68,6 +100,9 @@ def _emit(*, prefix: str, color: str, text: str, stream, width: int | None = Non
 
 def emit_user(text: str, *, stream=None, width: int | None = None) -> None:
     _emit(prefix="USER:", color=_ANSI_CYAN, text=text, stream=stream or sys.stdout, width=width)
+
+def emit_system(text: str, *, stream=None, width: int | None = None) -> None:
+    _emit(prefix="SYSTEM:", color=_ANSI_CYAN, text=text, stream=stream or sys.stdout, width=width)
 
 
 def emit_assistant(text: str, *, stream=None, width: int | None = None) -> None:

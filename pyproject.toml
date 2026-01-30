@@ -17,3 +17,6 @@ tool-context-relay = "tool_context_relay.cli:main"
 dev = [
     "pytest>=9.0.2",
 ]
+
+[tool.uv]
+package = true

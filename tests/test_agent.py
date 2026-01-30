@@ -6,8 +6,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from tool_context_relay.agent import build_agent
-from tool_context_relay.mcp_deepcheck import fun_deep_check
-from tool_context_relay.mcp_yt import fun_get_transcript
+from tool_context_relay.tools.mcp_deepcheck import fun_deep_check
+from tool_context_relay.tools.mcp_yt import fun_get_transcript
 
 
 class AgentTests(unittest.TestCase):
@@ -29,3 +29,8 @@ class AgentTests(unittest.TestCase):
             "The text to be checked.",
         )
 
+    def test_agent_instructions_are_dedented(self):
+        agent = build_agent(model="test")
+        lines = [line for line in str(agent.instructions).splitlines() if line.strip()]
+        self.assertTrue(lines)
+        self.assertEqual(lines[0], "Generate transcript of YT video with video_id='123' and then pass it for deep analysis.")

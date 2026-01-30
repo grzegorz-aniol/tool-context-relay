@@ -8,7 +8,7 @@ from openai.types.responses.response_output_message import ResponseOutputMessage
 from openai.types.responses.response_output_refusal import ResponseOutputRefusal
 from openai.types.responses.response_output_text import ResponseOutputText
 
-from tool_context_relay.main import _assistant_text_from_output_items
+from tool_context_relay.agent.handler import _assistant_text_from_output_items
 
 
 class ResponseExtractionTests(unittest.TestCase):
