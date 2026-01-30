@@ -24,12 +24,13 @@ def box_value(value: str) -> str:
     if len(value) > MAX_RESULT_SIZE:
         resource_hash = _to_unsigned_64(hash(value))
         resource_id = f"internal://{resource_hash:016x}"
+        # We store value in in-memory cache, but the client may have different implementation (e.g. file based store)
         cache[resource_id] = value
         return resource_id
     return value
 
 
-# ==> This is the core of the idea <==
+# ==> This is the core of the Tool Context Relay <==
 # We are unboxing input arguments (resolving potential resource IDs to full text)
 # and boxing output values (storing large outputs and returning resource IDs instead)
 def tool_relay(func: Callable[..., str], args: Sequence[str]) -> str:

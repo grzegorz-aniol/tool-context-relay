@@ -4,7 +4,13 @@ Minimal CLI app that demonstrates OpenAI Agents SDK tool calls via hooks output.
 
 ## Setup
 
-Requires `OPENAI_API_KEY` in the environment.
+Requires an API key in the environment. Recommended variables:
+
+- OpenAI (default): `OPENAI_API_KEY`
+- OpenAI-compatible (`--endpoint ...` / `OPENAI_BASE_URL`): `OPENAI_COMPAT_API_KEY`
+
+When using an OpenAI-compatible endpoint, `OPENAI_COMPAT_API_KEY` is mapped to
+`OPENAI_API_KEY` internally for the SDKs.
 
 Install dependencies (needs network access):
 
@@ -16,6 +22,12 @@ This project is configured as a uv package, so `uv sync` also installs the CLI a
 ## Run
 
 `tool-context-relay "Transcribe a YouTube video 123, then deep check it." --dump-context`
+
+Use a non-default OpenAI-compatible endpoint:
+
+`tool-context-relay --provider openai-compat --endpoint http://localhost:11434/v1 "Transcribe 123"`
+
+If you omit `--provider`, the default is `--provider auto` which chooses `openai-compat` when an endpoint override is present.
 
 Color output:
 

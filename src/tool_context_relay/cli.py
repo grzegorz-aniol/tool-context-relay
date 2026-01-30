@@ -5,7 +5,11 @@ import json
 import os
 import sys
 
-from tool_context_relay.main import run_once
+from tool_context_relay.openai_env import resolve_provider
+
+
+def _has_env_endpoint_override() -> bool:
+    return bool(os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE"))
 
 
 def _parse_kv(pairs: list[str]) -> dict[str, str]:
@@ -18,6 +22,44 @@ def _parse_kv(pairs: list[str]) -> dict[str, str]:
             raise ValueError(f"invalid --set value (empty key): {pair}")
         kv[key] = value
     return kv
+
+
+def _normalize_model_for_agents(*, model: str) -> str:
+    """Normalize model names before sending a request to an OpenAI(-compatible) server.
+
+    The Agents SDK MultiProvider conventionally accepts model names like "openai/gpt-4.1".
+    When talking directly to a server, we strip the leading "openai/" prefix so the
+    actual model name is sent over the wire.
+    """
+    if model.startswith("openai/"):
+        return model.removeprefix("openai/")
+    return model
+
+
+def _format_startup_config_line(
+    *,
+    provider_requested: str,
+    provider_resolved: str,
+    model_requested: str,
+    model_effective: str,
+    endpoint: str | None,
+) -> str:
+    parts: list[str] = ["tool-context-relay config:"]
+
+    if provider_requested != provider_resolved:
+        parts.append(f"provider={provider_resolved} (requested={provider_requested})")
+    else:
+        parts.append(f"provider={provider_resolved}")
+
+    if model_requested != model_effective:
+        parts.append(f"model={model_effective} (from={model_requested})")
+    else:
+        parts.append(f"model={model_effective}")
+
+    if endpoint:
+        parts.append(f"endpoint={endpoint}")
+
+    return " ".join(parts)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -35,7 +77,29 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default="gpt-4.1-mini",
-        help="Model name (default: %(default)s).",
+        help=(
+            "Model name (default: %(default)s). "
+            "If you pass an Agents-style prefix like 'openai/<model>', it will be stripped "
+            "before sending the request."
+        ),
+    )
+    parser.add_argument(
+        "--provider",
+        default="auto",
+        choices=["auto", "openai", "openai-compat"],
+        help=(
+            "Which API provider to use for auth/env mapping (default: %(default)s). "
+            "'openai-compat' requires --endpoint or OPENAI_BASE_URL/OPENAI_API_BASE."
+        ),
+    )
+    parser.add_argument(
+        "--endpoint",
+        default=None,
+        metavar="URL",
+        help=(
+            "OpenAI-compatible API base URL (e.g. http://localhost:11434/v1). "
+            "Overrides OPENAI_BASE_URL / OPENAI_API_BASE for this run."
+        ),
     )
     parser.add_argument(
         "--set",
@@ -58,6 +122,30 @@ def main(argv: list[str] | None = None) -> int:
     # Propagate to the pretty emitter, and transitively to tool hooks.
     os.environ["TOOL_CONTEXT_RELAY_COLOR"] = args.color
 
+    provider = args.provider
+
+    if args.endpoint is not None:
+        endpoint = args.endpoint.strip()
+        if not endpoint:
+            print("Endpoint must not be empty.", file=sys.stderr)
+            return 2
+        os.environ["OPENAI_BASE_URL"] = endpoint
+        os.environ["OPENAI_API_BASE"] = endpoint
+
+    has_endpoint_override = _has_env_endpoint_override()
+    if provider == "openai-compat" and not has_endpoint_override:
+        print(
+            "Provider 'openai-compat' requires an endpoint override via --endpoint or OPENAI_BASE_URL/OPENAI_API_BASE.",
+            file=sys.stderr,
+        )
+        return 2
+    if provider == "openai" and has_endpoint_override:
+        print(
+            "Provider 'openai' cannot be used with an endpoint override (--endpoint / OPENAI_BASE_URL / OPENAI_API_BASE).",
+            file=sys.stderr,
+        )
+        return 2
+
     try:
         initial_kv = _parse_kv(args.set)
     except ValueError as e:
@@ -69,7 +157,25 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        output, context = run_once(prompt=args.prompt, model=args.model, initial_kv=initial_kv)
+        from tool_context_relay.main import run_once
+
+        model = _normalize_model_for_agents(model=args.model)
+        endpoint_to_print = None
+        if has_endpoint_override:
+            endpoint_to_print = (os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE") or "").strip() or None
+
+        config_line = _format_startup_config_line(
+            provider_requested=provider,
+            provider_resolved=resolve_provider(provider),
+            model_requested=args.model,
+            model_effective=model,
+            endpoint=endpoint_to_print,
+        )
+        print(config_line, file=sys.stderr)
+
+        output, context = run_once(
+            prompt=args.prompt, model=model, initial_kv=initial_kv, provider=provider
+        )
     except ModuleNotFoundError as e:
         if e.name == "agents":
             print(

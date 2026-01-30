@@ -9,6 +9,7 @@ _ANSI_RESET = "\x1b[0m"
 _ANSI_CYAN = "\x1b[36m"
 _ANSI_GREEN = "\x1b[32m"
 _ANSI_YELLOW = "\x1b[33m"
+_ANSI_LIGHT_YELLOW = "\x1b[38;5;229m"
 _ANSI_MAGENTA = "\x1b[35m"
 _ANSI_DEFAULT = "\x1b[0m"
 
@@ -105,26 +106,25 @@ def _emit(*, prefix: str, color: str, text: str, stream, width: int | None = Non
     stream.write("\n")
     _emit_colored_or_plain(stream=stream, color=color, text=prefix)
     if body:
-        stream.write("\n")
         _emit_colored_or_plain(stream=stream, color=color, text=body)
     stream.flush()
 
 
 def emit_user(text: str, *, stream=None, width: int | None = None) -> None:
     _mark_default_inactive(stream or sys.stdout)
-    _emit(prefix="USER:", color=_ANSI_CYAN, text=text, stream=stream or sys.stdout, width=width)
+    _emit(prefix="<user>", color=_ANSI_LIGHT_YELLOW, text=text, stream=stream or sys.stdout, width=width)
 
 
 def emit_system(text: str, *, stream=None, width: int | None = None) -> None:
     _mark_default_inactive(stream or sys.stdout)
-    _emit(prefix="SYSTEM:", color=_ANSI_CYAN, text=text, stream=stream or sys.stdout, width=width)
+    _emit(prefix="<system>", color=_ANSI_MAGENTA, text=text, stream=stream or sys.stdout, width=width)
 
 
 def emit_assistant(text: str, *, stream=None, width: int | None = None) -> None:
     _mark_default_inactive(stream or sys.stdout)
     _emit(
-        prefix="ASSISTANT:",
-        color=_ANSI_GREEN,
+        prefix="<assistant>",
+        color=_ANSI_DEFAULT,
         text=text,
         stream=stream or sys.stdout,
         width=width,
@@ -134,8 +134,8 @@ def emit_assistant(text: str, *, stream=None, width: int | None = None) -> None:
 def emit_tool_request(text: str, *, stream=None, width: int | None = None) -> None:
     _mark_default_inactive(stream or sys.stdout)
     _emit(
-        prefix="TOOL_CALL:",
-        color=_ANSI_YELLOW,
+        prefix="<tool call>",
+        color=_ANSI_CYAN,
         text=text,
         stream=stream or sys.stdout,
         width=width,
@@ -145,8 +145,8 @@ def emit_tool_request(text: str, *, stream=None, width: int | None = None) -> No
 def emit_tool_response(text: str, *, stream=None, width: int | None = None) -> None:
     _mark_default_inactive(stream or sys.stdout)
     _emit(
-        prefix="TOOL_RESULT:",
-        color=_ANSI_MAGENTA,
+        prefix="<tool result>",
+        color=_ANSI_GREEN,
         text=text,
         stream=stream or sys.stdout,
         width=width,
@@ -167,12 +167,12 @@ def emit_default(text: str, *, group: str | None = None, stream=None, width: int
     if not continuing:
         resolved_stream.write("\n")
         headline = f"{group}:" if group else "##"
-        _emit_colored_or_plain(stream=resolved_stream, color=_ANSI_DEFAULT, text=headline)
+        _emit_colored_or_plain(stream=resolved_stream, color=_ANSI_YELLOW, text=headline)
         try:
             _default_group_by_stream[resolved_stream] = group
             _default_active_by_stream[resolved_stream] = True
         except TypeError:
             pass
 
-    _emit_colored_or_plain(stream=resolved_stream, color=_ANSI_DEFAULT, text=body)
+    _emit_colored_or_plain(stream=resolved_stream, color=_ANSI_YELLOW, text=body)
     resolved_stream.flush()

@@ -20,7 +20,7 @@ class PrettyTests(unittest.TestCase):
         stream = io.StringIO()
         with patch.dict(os.environ, {"TOOL_CONTEXT_RELAY_COLOR": "never"}, clear=True):
             emit_user("hello", stream=stream, width=120)
-        self.assertTrue(stream.getvalue().startswith("\nUSER:\n\nhello\n"))
+        self.assertTrue(stream.getvalue().startswith("\n<user>\nhello\n"))
 
     def test_wraps_to_width(self):
         stream = io.StringIO()
@@ -28,7 +28,7 @@ class PrettyTests(unittest.TestCase):
         emit_user(long_text, stream=stream, width=40)
         out = stream.getvalue().rstrip("\n")
         for line in out.splitlines():
-            if line in {"", "USER:"}:
+            if line in {"", "<user>"}:
                 continue
             self.assertLessEqual(len(line), 40)
 
@@ -37,7 +37,21 @@ class PrettyTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             emit_tool_request("hello", stream=stream, width=120)
         out = stream.getvalue()
-        self.assertTrue(out.startswith("\n\x1b[33mTOOL_CALL:\x1b[0m\n\n\x1b[33mhello\x1b[0m\n"))
+        self.assertTrue(out.startswith("\n\x1b[36m<tool call>\x1b[0m\n\x1b[36mhello\x1b[0m\n"))
+
+    def test_user_is_light_yellow_on_tty(self):
+        stream = _TtyStringIO()
+        with patch.dict(os.environ, {}, clear=True):
+            emit_user("hello", stream=stream, width=120)
+        out = stream.getvalue()
+        self.assertTrue(out.startswith("\n\x1b[38;5;229m<user>\x1b[0m\n\x1b[38;5;229mhello\x1b[0m\n"))
+
+    def test_tool_result_is_green_on_tty(self):
+        stream = _TtyStringIO()
+        with patch.dict(os.environ, {}, clear=True):
+            emit_tool_response("hello", stream=stream, width=120)
+        out = stream.getvalue()
+        self.assertTrue(out.startswith("\n\x1b[32m<tool result>\x1b[0m\n\x1b[32mhello\x1b[0m\n"))
 
     def test_no_color_disables_colors(self):
         stream = _TtyStringIO()
@@ -51,7 +65,7 @@ class PrettyTests(unittest.TestCase):
         with patch.dict(os.environ, {"FORCE_COLOR": "1"}, clear=True):
             emit_tool_request("hello", stream=stream, width=120)
         out = stream.getvalue()
-        self.assertTrue(out.startswith("\n\x1b[33mTOOL_CALL:\x1b[0m\n\n\x1b[33mhello\x1b[0m\n"))
+        self.assertTrue(out.startswith("\n\x1b[36m<tool call>\x1b[0m\n\x1b[36mhello\x1b[0m\n"))
 
     def test_color_mode_never_disables_on_tty(self):
         stream = _TtyStringIO()
@@ -72,8 +86,8 @@ class PrettyTests(unittest.TestCase):
         with patch.dict(os.environ, {"TOOL_CONTEXT_RELAY_COLOR": "never"}, clear=True):
             emit_tool_response("line1\nline2", stream=stream, width=120)
         out = stream.getvalue()
-        self.assertEqual(out.count("TOOL_RESULT:"), 1)
-        self.assertIn("\nTOOL_RESULT:\n\nline1\nline2\n", out)
+        self.assertEqual(out.count("<tool result>"), 1)
+        self.assertIn("\n<tool result>\nline1\nline2\n", out)
 
     def test_default_group_combines_without_empty_lines(self):
         stream = io.StringIO()
