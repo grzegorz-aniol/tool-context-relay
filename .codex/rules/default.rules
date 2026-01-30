@@ -8,3 +8,6 @@ prefix_rule(pattern = ["make", "ci"], decision = "allow")
 
 # Allow docker compose workflows without interactive approval prompts.
 prefix_rule(pattern = ["docker", "compose"], decision = "allow")
+
+# Allow running uv
+prefix_rule(pattern = ["uv"], decision = "allow")
