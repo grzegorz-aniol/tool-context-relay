@@ -73,4 +73,5 @@ class AgentTests(unittest.TestCase):
         agent = build_agent(model="test")
         lines = [line for line in str(agent.instructions).splitlines() if line.strip()]
         self.assertTrue(lines)
-        self.assertEqual(lines[0], "Generate transcript of YT video with video_id='123' and then pass it for deep analysis.")
+        self.assertEqual(lines[0], "- Be concise.")
+        self.assertFalse(lines[0].startswith(" "))

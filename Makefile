@@ -17,7 +17,6 @@ case1:
 
 case1-compat:
 	tool-context-relay --provider openai-compat \
-		--print-tools \
 		--endpoint ${OPENAI_COMPAT_URL} \
 		--model ${OPENAI_COMPAT_MODEL} \
 		${PROMPT_1}
@@ -25,5 +24,17 @@ case1-compat:
 case2:
 	tool-context-relay ${PROMPT_2}
 
+case2-compat:
+	tool-context-relay --provider openai-compat \
+		--endpoint ${OPENAI_COMPAT_URL} \
+		--model ${OPENAI_COMPAT_MODEL} \
+		${PROMPT_2}
+
 case3:
 	tool-context-relay ${PROMPT_3}
+
+case3-compat:
+	tool-context-relay --provider openai-compat \
+		--endpoint ${OPENAI_COMPAT_URL} \
+		--model ${OPENAI_COMPAT_MODEL} \
+		${PROMPT_3}
