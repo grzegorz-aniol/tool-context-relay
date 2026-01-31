@@ -1,4 +1,4 @@
-.PHONY: ci integration
+.PHONY: ci integration case1 case1-compat case2 case2-compat case3 case3-compat case4 case4-compat
 
 
 PROMPT_1 := "Generate transcript of YT video with video_id='123' and then pass it for deep analysis."
