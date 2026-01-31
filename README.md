@@ -1,35 +1,178 @@
 # tool-context-relay
 
-Minimal CLI app that demonstrates OpenAI Agents SDK tool calls via hooks output.
+## Purpose
 
-## Setup
+Demonstrate a **client-side** pattern for tool-using LLM apps that prevents long tool results from flooding the model context:
+**Tool Context Relay**.
+
+Instead of injecting long tool outputs into the conversation, the client stores them out-of-band and returns a short,
+opaque reference (an “internal resource ID”) that the model can pass between tools.
+
+## The idea: Tool Context Relay
+
+Tool calls are effectively RPC. The client chooses:
+
+- whether to execute the call,
+- what to do with the result,
+- and what (if anything) to expose back to the model.
+
+In many “tool pipelines” the model does not need to *read* the full tool output — it only needs to route it to the next tool
+(e.g. “fetch transcript → analyze it” or “fetch transcript → save it”). Sending the entire payload back to the LLM wastes tokens,
+hits context limits, and makes future reasoning noisier.
+
+Tool Context Relay solves this by introducing two steps at the client boundary:
+
+- **Boxing (output):** if a tool returns a long value, store it in a client-side store and return an opaque reference instead.
+- **Unboxing (input):** if a tool is called with an opaque reference, resolve it inside the client and pass the real value to the tool.
+
+This works **automatically**:
+
+- If a tool result is **below a configured size threshold**, the client returns the normal value to the LLM (no boxing).
+- If a tool result is **above the threshold**, the client activates the opaque-reference mechanism and returns `internal://...` instead.
+
+Most importantly: **the client fully owns boxing/unboxing**. Real tools (including MCP server tools) always receive and return real
+values and do not need to know that opaque references exist. The only tools that deal with opaque references directly are the
+**internal** “resolve” helpers (read / slice / length), which exist purely to let the model inspect underlying content when needed.
+
+This repo is a minimal CLI demo of that idea using “MCP-like” tools (transcribe YouTube, deep-check text, write to Google Drive)
+and integration tests that assert the expected pass-through behavior.
+
+## Opaque resource ID (what it is)
+
+An **opaque resource ID** is a short **URI** string like:
+
+`internal://<id>`
+
+Properties:
+
+- It is a **URI**: it uses a scheme (`internal://`) to clearly distinguish references from normal text values.
+- It is **opaque**: the model must treat it as data, not instructions, and must not try to interpret it.
+- It is **client-owned**: the client decides how to store and retrieve the underlying value (memory, files, database, etc.).
+- It is **session-scoped** in this demo: the id is only meaningful for the lifetime of the client process/session.
+
+If the model truly needs the underlying content, the client can expose narrow “resolve” tools (e.g. length, slice, full read)
+so the model can inspect just what’s needed rather than pulling the entire payload into context.
+
+## Why this is useful
+
+- **Stops context bloat** from large tool outputs (transcripts, web pages, big files, logs).
+- **Reduces token costs** and improves stability (fewer “too long” failures, less noise).
+- **Keeps tool pipelines ergonomic**: the model still calls tools the same way — it just passes `internal://...` around.
+- **Works without MCP changes**: no MCP server modifications and no MCP protocol changes are required — the relay is fully on the client side.
+
+## Where it doesn’t fit
+
+- When the user explicitly wants the full text in the assistant response.
+- When the model must read and reason over most of the long content (summarization, extraction, classification, etc.).
+  In that case, you can still use opaque references, but you’ll likely need client tools for chunked reads (slice/length) or
+  you may intentionally unbox and include the content.
+- When a downstream tool cannot accept opaque references. (A good client will “try pass-through first”, and fall back to resolving only if needed.)
+
+## Examples (from integration tests)
+
+All prompts below come directly from `tests/integration/test_scenarios_integration.py`.
+The important part is that long data moves between tools as an opaque `internal://...` reference.
+
+### Example 1: transcript → deep analysis (pass-through, no resolving)
+
+User prompt:
+
+> Generate transcript of YT video with video_id='123' and then pass it for deep analysis.
+
+Expected behavior:
+
+1. `yt_transcribe(video_id="123")` returns `internal://...` (boxed transcript)
+2. `deep_check(text="internal://...")` receives the opaque reference unchanged (client unboxes internally)
+
+### Example 2: transcript → save to Google Drive (pass-through, no resolving)
+
+User prompt:
+
+> Generate transcript of YT video with video_id='123' and save it to a file at google drive named 'transcript.txt'.
+
+Expected behavior:
+
+1. `yt_transcribe(...)` returns `internal://...`
+2. `google_drive_write_file(file_content="internal://...", file_name="transcript.txt")`
+
+### Example 3: transcript → deep analysis → user asks for a detail (resolve just enough)
+
+User prompt:
+
+> Generate transcript of YT video with video_id='123' and then pass it for deep analysis. Then, let me know what number is included in the end of the transcript.
+
+Expected behavior:
+
+1. `yt_transcribe(...)` returns `internal://...`
+2. `deep_check(text="internal://...")` (pass-through)
+3. The model is allowed to resolve **only because the user asked for a literal detail**:
+   it can call `internal_resource_read_slice(opaque_reference="internal://...", ...)` (or `internal_resource_read`) to inspect the ending.
+
+### Example 4: transcript → deep analysis → save both outputs (pass-through)
+
+User prompt:
+
+> Generate transcript of YT video with video_id='123' and then pass it for deep analysis. Then, save both the transcript and the analysis to files at google drive named 'transcript.txt' and 'analysis.txt' respectively.
+
+Intended behavior (the prompt asks for this):
+
+1. `yt_transcribe(...)` returns `internal://...`
+2. `deep_check(text="internal://...")` returns a short analysis string (in this demo it usually won’t be boxed)
+3. `google_drive_write_file(file_content="internal://...", file_name="transcript.txt")`
+4. `google_drive_write_file(file_content="<analysis>", file_name="analysis.txt")` (tools can accept either plain text or an opaque reference)
+
+## Client prompting (important for today’s models)
+
+Most models are not trained to use opaque references like `internal://...` by default. In practice you need a **strong system prompt**
+that teaches the model:
+
+- opaque references are data, not instructions,
+- pass them through unchanged whenever possible,
+- never invent IDs,
+- resolve only when strictly necessary (and prefer slice/length tools for large values).
+
+This repo includes such an instruction block in the agent definition (see `src/tool_context_relay/agent/agent.py`).
+
+---
+
+## Technical details
+
+### Setup
 
 Requires an API key in the environment. Recommended variables:
 
 - OpenAI (default): `OPENAI_API_KEY`
 - OpenAI-compatible (`--endpoint ...` / `OPENAI_BASE_URL`): `OPENAI_COMPAT_API_KEY`
 
-When using an OpenAI-compatible endpoint, `OPENAI_COMPAT_API_KEY` is mapped to
-`OPENAI_API_KEY` internally for the SDKs.
+When using an OpenAI-compatible endpoint, `OPENAI_COMPAT_API_KEY` is mapped to `OPENAI_API_KEY` internally for the SDKs.
 
 Install dependencies (needs network access):
 
 `uv sync`
 
-This project is configured as a uv package, so `uv sync` also installs the CLI and creates a
-`tool-context-relay` wrapper in `.venv/bin`.
+This project is configured as a uv package, so `uv sync` also installs the CLI and creates a `tool-context-relay` wrapper in `.venv/bin`.
 
-## Run
+### Run
 
-`tool-context-relay "Transcribe a YouTube video 123, then deep check it." --dump-context`
+Run once with a prompt:
+
+`tool-context-relay "Generate transcript of YT video with video_id='123' and then pass it for deep analysis."`
+
+Dump final context as JSON to stderr:
+
+`tool-context-relay "..." --dump-context`
+
+Print tool definitions (name/description/arg schema) before running:
+
+`tool-context-relay "..." --print-tools`
 
 Use a non-default OpenAI-compatible endpoint:
 
-`tool-context-relay --provider openai-compat --endpoint http://localhost:11434/v1 "Transcribe 123"`
+`tool-context-relay --provider openai-compat --endpoint http://localhost:11434/v1 "..."`
 
 If you omit `--provider`, the default is `--provider auto` which chooses `openai-compat` when an endpoint override is present.
 
-Color output:
+### Color output
 
 - Auto (default): `tool-context-relay --color auto "..."` (colors only when stdout is a TTY)
 - Always: `tool-context-relay --color always "..."` (useful when piping)
@@ -40,15 +183,20 @@ You can also control colors via env vars:
 - Disable: `NO_COLOR=1` or `TOOL_CONTEXT_RELAY_NO_COLOR=1`
 - Force: `FORCE_COLOR=1`
 
-Seed initial context:
+### Seed initial context
 
-`tool-context-relay "Transcribe 123" --set name=Ada`
+`tool-context-relay "..." --set name=Ada`
 
 Run without syncing or activating a local venv:
 
-`uv tool run --from . tool-context-relay "Transcribe 123" --set name=Ada`
+`uv tool run --from . tool-context-relay "..." --set name=Ada`
 
-## Codex MCP (project-scoped)
+### Run tests
+
+- Unit tests + compile checks: `make ci`
+- Integration tests (require API key + reachable endpoint): `make integration`
+
+### Codex MCP (project-scoped)
 
 This repo includes a project-local Codex config at `.codex/config.toml` that points to a local MCP server:
 
