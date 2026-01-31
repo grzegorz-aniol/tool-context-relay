@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -22,6 +23,7 @@ def run_once(
     model: str,
     initial_kv: dict[str, str],
     provider: Provider = "auto",
+    print_tools: bool = False,
 ) -> tuple[str, RelayContext]:
     from agents import OpenAIChatCompletionsModel, Runner, set_tracing_disabled
 
@@ -52,5 +54,9 @@ def run_once(
 
     context = RelayContext(kv=dict(initial_kv))
     agent = build_agent(model=model_obj)
+    if print_tools:
+        from tool_context_relay.agent.tool_definitions import print_tool_definitions
+
+        print_tool_definitions(agent.tools, stream=sys.stderr)
     result = Runner.run_sync(agent, prompt, hooks=RunHookHandler(), context=context)
     return result.final_output, context

@@ -113,6 +113,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print final context as JSON to stderr.",
     )
+    parser.add_argument(
+        "--print-tools",
+        action="store_true",
+        help="Print tool definitions (name/description/arg schema) to stderr before running the agent.",
+    )
     return parser
 
 
@@ -174,7 +179,11 @@ def main(argv: list[str] | None = None) -> int:
         print(config_line, file=sys.stderr)
 
         output, context = run_once(
-            prompt=args.prompt, model=model, initial_kv=initial_kv, provider=provider
+            prompt=args.prompt,
+            model=model,
+            initial_kv=initial_kv,
+            provider=provider,
+            print_tools=args.print_tools,
         )
     except ModuleNotFoundError as e:
         if e.name == "agents":
