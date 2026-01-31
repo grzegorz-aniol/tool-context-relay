@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
 
@@ -23,6 +24,21 @@ from tool_context_relay.testing.integration_hooks import (
 
 
 pytestmark = pytest.mark.integration
+
+
+INTERNAL_RESOLVE_TOOLS = (
+    "internal_resource_read",
+    "internal_resource_read_slice",
+    "internal_resource_length",
+)
+
+
+@dataclass(frozen=True)
+class OpaquePassThroughExpectation:
+    source_tool_name: str
+    destination_tool_name: str
+    destination_argument_name: str
+    destination_argument_filter: dict[str, str] | None = None
 
 
 PROMPT_1 = dedent(
@@ -90,7 +106,7 @@ def _configure_provider_env(monkeypatch: pytest.MonkeyPatch, provider: str) -> s
 
 
 def _assert_no_unnecessary_resolves(calls) -> None:
-    for tool_name in ("internal_resource_read", "internal_resource_read_slice", "internal_resource_length"):
+    for tool_name in INTERNAL_RESOLVE_TOOLS:
         assert_tool_not_called(calls, tool_name)
 
 
@@ -110,70 +126,144 @@ def _assert_internal_resolve_uses_opaque_reference(calls, opaque_reference: str)
 
 
 @pytest.mark.parametrize(
-    ("provider", "prompt", "expect_internal_resolve", "expect_deep_check", "expect_drive_saves"),
+    (
+        "provider",
+        "prompt",
+        "required_tools",
+        "forbidden_tools",
+        "opaque_pass_through_expectations",
+        "expect_internal_resolve",
+    ),
     [
-        ("openai", PROMPT_1, False, True, False),
-        ("openai", PROMPT_2, False, False, True),
-        ("openai", PROMPT_3, True, True, False),
-        ("openai", PROMPT_4, False, True, True),
-        ("openai-compat", PROMPT_1, False, True, False),
-        ("openai-compat", PROMPT_2, False, False, True),
-        ("openai-compat", PROMPT_3, True, True, False),
-        ("openai-compat", PROMPT_4, False, True, True),
+        (provider, *scenario)
+        for provider in ("openai", "openai-compat")
+        for scenario in [
+            (
+                PROMPT_1,
+                {"yt_transcribe", "deep_check"},
+                {"google_drive_write_file"},
+                [
+                    OpaquePassThroughExpectation(
+                        source_tool_name="yt_transcribe",
+                        destination_tool_name="deep_check",
+                        destination_argument_name="text",
+                    ),
+                ],
+                False,
+            ),
+            (
+                PROMPT_2,
+                {"yt_transcribe", "google_drive_write_file"},
+                {"deep_check"},
+                [
+                    OpaquePassThroughExpectation(
+                        source_tool_name="yt_transcribe",
+                        destination_tool_name="google_drive_write_file",
+                        destination_argument_name="file_content",
+                        destination_argument_filter={"file_name": "transcript.txt"},
+                    ),
+                ],
+                False,
+            ),
+            (
+                PROMPT_3,
+                {"yt_transcribe", "deep_check"},
+                {"google_drive_write_file"},
+                [
+                    OpaquePassThroughExpectation(
+                        source_tool_name="yt_transcribe",
+                        destination_tool_name="deep_check",
+                        destination_argument_name="text",
+                    ),
+                ],
+                True,
+            ),
+            (
+                PROMPT_4,
+                {"yt_transcribe", "deep_check", "google_drive_write_file"},
+                set(),
+                [
+                    OpaquePassThroughExpectation(
+                        source_tool_name="yt_transcribe",
+                        destination_tool_name="deep_check",
+                        destination_argument_name="text",
+                    ),
+                    OpaquePassThroughExpectation(
+                        source_tool_name="yt_transcribe",
+                        destination_tool_name="google_drive_write_file",
+                        destination_argument_name="file_content",
+                        destination_argument_filter={"file_name": "transcript.txt"},
+                    ),
+                ],
+                False,
+            ),
+        ]
     ],
     ids=[
-        "openai-case1",
-        "openai-case2",
-        "openai-case3",
-        "openai-case4",
-        "openai-compat-case1",
-        "openai-compat-case2",
-        "openai-compat-case3",
-        "openai-compat-case4",
+        f"{provider}-case{case_num}"
+        for provider in ("openai", "openai-compat")
+        for case_num in range(1, 5)
     ],
 )
 def test_scenarios_integration(
+    pytestconfig: pytest.Config,
     monkeypatch: pytest.MonkeyPatch,
     provider: str,
     prompt: str,
+    required_tools: set[str],
+    forbidden_tools: set[str],
+    opaque_pass_through_expectations: list[OpaquePassThroughExpectation],
     expect_internal_resolve: bool,
-    expect_deep_check: bool,
-    expect_drive_saves: bool,
 ) -> None:
+    selected_provider = pytestconfig.getoption("--provider")
+    if selected_provider != "all" and provider != selected_provider:
+        pytest.skip(f"--provider={selected_provider!r} excludes provider={provider!r}")
+
     model = _configure_provider_env(monkeypatch, provider)
 
     hooks = CaptureToolCalls()
     run_once(prompt=prompt, model=model, initial_kv={}, provider=provider, hooks=hooks)
 
     calls = hooks.tool_calls
-    assert_tool_called(calls, "yt_transcribe")
-    assert_tool_called(calls, "deep_check")
 
-    transcript_ref = require_tool_call_result(calls, "yt_transcribe")
-    if not is_resource_id(transcript_ref):
-        raise AssertionError(f"expected yt_transcribe to return an opaque reference, got {transcript_ref!r}")
+    if not required_tools and not forbidden_tools and not opaque_pass_through_expectations and not expect_internal_resolve:
+        if calls:
+            tool_names = sorted({call.name for call in calls})
+            raise AssertionError(f"expected no tool calls, got {tool_names!r}")
+        return
 
-    if expect_deep_check:
+    for tool_name in required_tools:
+        assert_tool_called(calls, tool_name)
+
+    for tool_name in forbidden_tools:
+        assert_tool_not_called(calls, tool_name)
+
+    transcript_ref: str | None = None
+    needs_transcript_ref = (
+        "yt_transcribe" in required_tools
+        or any(exp.source_tool_name == "yt_transcribe" for exp in opaque_pass_through_expectations)
+        or expect_internal_resolve
+    )
+    if needs_transcript_ref:
+        transcript_ref = require_tool_call_result(calls, "yt_transcribe")
+        if not is_resource_id(transcript_ref):
+            raise AssertionError(
+                f"expected yt_transcribe to return an opaque reference, got {transcript_ref!r}"
+            )
+
+    for exp in opaque_pass_through_expectations:
+        opaque_reference = require_tool_call_result(calls, exp.source_tool_name)
         assert_opaque_pass_through(
             calls=calls,
-            opaque_reference=transcript_ref,
-            tool_name="deep_check",
-            argument_name="text",
+            opaque_reference=opaque_reference,
+            tool_name=exp.destination_tool_name,
+            argument_name=exp.destination_argument_name,
+            argument_filter=exp.destination_argument_filter,
         )
-
-    if expect_drive_saves:
-        assert_tool_called(calls, "google_drive_write_file")
-        assert_opaque_pass_through(
-            calls=calls,
-            opaque_reference=transcript_ref,
-            tool_name="google_drive_write_file",
-            argument_name="file_content",
-            argument_filter={"file_name": "transcript.txt"},
-        )
-        _assert_no_unnecessary_resolves(calls)
 
     if expect_internal_resolve:
+        if transcript_ref is None:
+            transcript_ref = require_tool_call_result(calls, "yt_transcribe")
         _assert_internal_resolve_uses_opaque_reference(calls, transcript_ref)
-
-    if not expect_drive_saves and not expect_deep_check and not expect_internal_resolve:
+    else:
         _assert_no_unnecessary_resolves(calls)

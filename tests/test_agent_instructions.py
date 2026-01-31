@@ -22,6 +22,8 @@ def test_agent_instructions_are_generic_and_mention_opaque_references() -> None:
     assert "opaque reference" in instructions.lower()
     assert "optional" in instructions.lower()
     assert "internal://" in instructions
+    assert "preferred way to move large text" in instructions.lower()
+    assert "any tool argument that expects text" in instructions.lower()
     assert "always try passing the opaque reference" in instructions.lower()
     assert "do not resolve an opaque reference just to re-send it to another tool" in instructions.lower()
     assert "general (always):" not in instructions.lower()

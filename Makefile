@@ -14,7 +14,7 @@ ci:
 	uv run python -m pytest -q
 
 integration:
-	uv run python -m pytest -q -m integration tests/integration/
+	uv run python -m pytest -m integration -v tests/integration/
 
 case1:
 	tool-context-relay ${PROMPT_1}
