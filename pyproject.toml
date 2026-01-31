@@ -20,3 +20,9 @@ dev = [
 
 [tool.uv]
 package = true
+
+[tool.pytest.ini_options]
+addopts = "-m \"not integration\""
+markers = [
+    "integration: network/API integration tests (opt-in; excluded by default)",
+]

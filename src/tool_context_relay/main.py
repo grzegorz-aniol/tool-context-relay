@@ -24,6 +24,7 @@ def run_once(
     initial_kv: dict[str, str],
     provider: Provider = "auto",
     print_tools: bool = False,
+    hooks: object | None = None,
 ) -> tuple[str, RelayContext]:
     from agents import OpenAIChatCompletionsModel, Runner, set_tracing_disabled
 
@@ -58,5 +59,7 @@ def run_once(
         from tool_context_relay.agent.tool_definitions import print_tool_definitions
 
         print_tool_definitions(agent.tools, stream=sys.stderr)
-    result = Runner.run_sync(agent, prompt, hooks=RunHookHandler(), context=context)
+    if hooks is None:
+        hooks = RunHookHandler()
+    result = Runner.run_sync(agent, prompt, hooks=hooks, context=context)
     return result.final_output, context
