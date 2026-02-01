@@ -1,0 +1,1 @@
+Generate transcript of YT video with video_id='123' and save it to a file at google drive named 'transcript.txt'.

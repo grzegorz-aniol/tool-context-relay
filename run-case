@@ -1,0 +1,147 @@
+#!/usr/bin/env sh
+set -eu
+
+#
+# Model aliases (OpenAI-compatible servers often require long model identifiers).
+# Add your own aliases here.
+#
+MODEL_BIELIK="Bielik-11B-v3.0-Instruct.f16.gguf"
+
+# If `--provider openai-compat` is used without an explicit endpoint (and without OPENAI_BASE_URL/OPENAI_API_BASE),
+# the wrapper injects a default endpoint.
+DEFAULT_OPENAI_COMPAT_ENDPOINT="${TCR_OPENAI_COMPAT_ENDPOINT_DEFAULT:-http://127.0.0.1:1234/v1}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./run-case [tool-context-relay options...] <case-id>
+
+Examples:
+  ./run-case case1
+  ./run-case --provider openai-compat --model BIELIK case1
+  ./run-case --provider openai --model gpt-4.1-mini case2
+
+Notes:
+  - <case-id> should be "case1".."caseN" (numeric ids like "1" are also accepted).
+  - `--model` also accepts aliases defined in this file (e.g. BIELIK).
+  - For `--provider openai-compat`, an endpoint is required by the CLI; this wrapper supplies a default unless you pass
+    `--endpoint ...` or set OPENAI_BASE_URL/OPENAI_API_BASE.
+EOF
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
+  usage
+  exit 0
+fi
+
+if [ $# -lt 1 ]; then
+  usage >&2
+  exit 2
+fi
+
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+repo_root="$script_dir"
+cd "$repo_root"
+
+# The wrapper mirrors the CLI shape: flags first, "prompt" last.
+# Here, <case-id> is our "prompt selector", so it must be the last argument.
+case_id=""
+for arg in "$@"; do
+  case_id="$arg"
+done
+
+case_id="${case_id#./}"
+case_id="${case_id#case}"
+case_id="case${case_id}"
+
+case_file="${repo_root}/prompt_cases/${case_id}.txt"
+if [ ! -f "$case_file" ]; then
+  echo "Unknown case-id: ${case_id}. Expected e.g. 'case1' (file: ${case_file})." >&2
+  exit 2
+fi
+
+# Prompts are stored as single-line text; keep it that way for argv safety.
+prompt="$(tr -d '\n' < "$case_file")"
+if [ -z "$prompt" ]; then
+  echo "Prompt file is empty: ${case_file}" >&2
+  exit 2
+fi
+
+quote_sh() {
+  # Single-quote a string for POSIX sh; escape internal single quotes.
+  printf "'%s'" "$(printf "%s" "$1" | sed "s/'/'\\\\''/g")"
+}
+
+expanded_argv=""
+provider=""
+has_endpoint="0"
+
+# Parse tool-context-relay options (everything except the last arg, which is <case-id>).
+while [ $# -gt 1 ]; do
+  case "$1" in
+    --provider)
+      provider="${2:-}"
+      if [ -z "$provider" ]; then
+        echo "Missing value for --provider." >&2
+        exit 2
+      fi
+      expanded_argv="${expanded_argv} $(quote_sh --provider) $(quote_sh "$provider")"
+      shift 2
+      ;;
+    --provider=*)
+      provider="${1#--provider=}"
+      expanded_argv="${expanded_argv} $(quote_sh "$1")"
+      shift 1
+      ;;
+    --endpoint)
+      has_endpoint="1"
+      endpoint_value="${2:-}"
+      if [ -z "$endpoint_value" ]; then
+        echo "Missing value for --endpoint." >&2
+        exit 2
+      fi
+      expanded_argv="${expanded_argv} $(quote_sh --endpoint) $(quote_sh "$endpoint_value")"
+      shift 2
+      ;;
+    --endpoint=*)
+      has_endpoint="1"
+      expanded_argv="${expanded_argv} $(quote_sh "$1")"
+      shift 1
+      ;;
+    --model)
+      model_value="${2:-}"
+      if [ -z "$model_value" ]; then
+        echo "Missing value for --model." >&2
+        exit 2
+      fi
+      case "$model_value" in
+        BIELIK) model_value="$MODEL_BIELIK" ;;
+      esac
+      expanded_argv="${expanded_argv} $(quote_sh --model) $(quote_sh "$model_value")"
+      shift 2
+      ;;
+    --model=*)
+      model_value="${1#--model=}"
+      case "$model_value" in
+        BIELIK) model_value="$MODEL_BIELIK" ;;
+      esac
+      expanded_argv="${expanded_argv} $(quote_sh "--model=$model_value")"
+      shift 1
+      ;;
+    *)
+      expanded_argv="${expanded_argv} $(quote_sh "$1")"
+      shift 1
+      ;;
+  esac
+done
+
+if [ "$provider" = "openai-compat" ] && [ "$has_endpoint" -eq 0 ]; then
+  if [ -z "${OPENAI_BASE_URL:-}" ] && [ -z "${OPENAI_API_BASE:-}" ]; then
+    expanded_argv="${expanded_argv} $(quote_sh --endpoint) $(quote_sh "$DEFAULT_OPENAI_COMPAT_ENDPOINT")"
+  fi
+fi
+
+expanded_argv="${expanded_argv} $(quote_sh "$prompt")"
+
+eval "set -- ${expanded_argv# }"
+exec uv run tool-context-relay "$@"
