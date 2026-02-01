@@ -20,6 +20,7 @@ Always follow this pattern:
 * verify solution, try to find mistake or inconsistency
 * write tests for new features and bug fixes
 * always verify with running pytest on all tests, there is 'ci' Makefile target you should run for it.
+* if you modified arguments of CLI commands, update README.md
 * If you made some changes in a round, make a retrospection of the whole process. When you were solving a task did you notice any important misunderstanding, wrong approach, wrong tool calls, anything that user had to explain, change you did. Do you see something could be improved in previously provided rules, content of skills? If so, propose an update and after user's confirmation you can do it.
 
 Never make modifications without a permission that are out of the plan and scope of the task!
