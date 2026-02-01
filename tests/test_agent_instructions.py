@@ -30,6 +30,34 @@ def test_agent_instructions_are_generic_and_mention_opaque_references() -> None:
     assert "opaque references (only if they appear):" not in instructions.lower()
 
 
+@pytest.mark.parametrize(
+    ("fewshots", "expected_present"),
+    [
+        (False, False),
+        (True, True),
+    ],
+)
+def test_agent_instructions_include_fewshots_only_when_enabled(
+    *, fewshots: bool, expected_present: bool
+) -> None:
+    from tool_context_relay.agent.agent import build_agent
+
+    agent = build_agent(model="dummy", fewshots=fewshots)
+    instructions = str(agent.instructions)
+    marker = "Examples (follow exactly):"
+
+    assert (marker in instructions) is expected_present
+
+
+def test_agent_instructions_enable_fewshots_by_default() -> None:
+    from tool_context_relay.agent.agent import build_agent
+
+    agent = build_agent(model="dummy")
+    instructions = str(agent.instructions)
+
+    assert "Examples (follow exactly):" in instructions
+
+
 def test_agent_exposes_only_new_internal_resource_tools() -> None:
     from tool_context_relay.agent.agent import build_agent
 

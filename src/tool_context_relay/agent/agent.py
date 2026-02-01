@@ -76,7 +76,7 @@ def internal_resource_length(ctx: RunContextWrapper[RelayContext], opaque_refere
     return str(len(value))
 
 
-def build_agent(*, model: str | Model):
+def build_agent(*, model: str | Model, fewshots: bool = True) -> Agent:
 
     # Prepare tool definitions based on python functions (we use explicitly function_tool decorator)
     tool_yt_transcribe = function_tool(yt_transcribe)
@@ -167,9 +167,10 @@ def build_agent(*, model: str | Model):
         """
     ).strip()
 
-    instructions = "\n\n".join(
-        [general_instructions, opaque_reference_instructions, small_model_examples]
-    )
+    instruction_parts = [general_instructions, opaque_reference_instructions]
+    if fewshots:
+        instruction_parts.append(small_model_examples)
+    instructions = "\n\n".join(instruction_parts)
 
     return Agent(
         name="Tool Context Relay",

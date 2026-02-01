@@ -24,6 +24,7 @@ def run_once(
     initial_kv: dict[str, str],
     provider: Provider = "auto",
     print_tools: bool = False,
+    fewshots: bool = True,
     hooks: object | None = None,
 ) -> tuple[str, RelayContext]:
     from agents import OpenAIChatCompletionsModel, Runner, set_tracing_disabled
@@ -54,7 +55,7 @@ def run_once(
     model_obj = OpenAIChatCompletionsModel(model=model, openai_client=client)
 
     context = RelayContext(kv=dict(initial_kv))
-    agent = build_agent(model=model_obj)
+    agent = build_agent(model=model_obj, fewshots=fewshots)
     if print_tools:
         from tool_context_relay.agent.tool_definitions import print_tool_definitions
 

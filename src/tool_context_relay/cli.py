@@ -68,6 +68,19 @@ def build_parser() -> argparse.ArgumentParser:
         "prompt",
         help="User prompt to run once (the agent may call tools).",
     )
+    parser.set_defaults(fewshots=True)
+    fewshots_group = parser.add_mutually_exclusive_group()
+    fewshots_group.add_argument(
+        "--fewshots",
+        action="store_true",
+        help="Include extra few-shot examples in the agent instructions (default).",
+    )
+    fewshots_group.add_argument(
+        "--no-fewshots",
+        action="store_false",
+        dest="fewshots",
+        help="Disable extra few-shot examples in the agent instructions.",
+    )
     parser.add_argument(
         "--color",
         default="auto",
@@ -184,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
             initial_kv=initial_kv,
             provider=provider,
             print_tools=args.print_tools,
+            fewshots=args.fewshots,
         )
     except ModuleNotFoundError as e:
         if e.name == "agents":
