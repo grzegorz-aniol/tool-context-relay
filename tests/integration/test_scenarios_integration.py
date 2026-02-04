@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass
 from pathlib import Path
-from textwrap import dedent
 
 import pytest
 from dotenv import load_dotenv
@@ -16,10 +14,11 @@ from tool_context_relay.tools.tool_relay import is_resource_id
 
 from tool_context_relay.testing.integration_hooks import (
     CaptureToolCalls,
-    assert_opaque_pass_through,
-    assert_tool_called,
     assert_tool_not_called,
     require_tool_call_result,
+)
+from tool_context_relay.testing.prompt_cases import (
+    ToolCallExpectation,
 )
 
 
@@ -32,49 +31,10 @@ INTERNAL_RESOLVE_TOOLS = (
     "internal_resource_length",
 )
 
-
-@dataclass(frozen=True)
-class OpaquePassThroughExpectation:
-    source_tool_name: str
-    destination_tool_name: str
-    destination_argument_name: str
-    destination_argument_filter: dict[str, str] | None = None
-
-
-PROMPT_1 = dedent(
-    """
-    Generate transcript of YT video with video_id='123' and then pass it for deep analysis.
-    """
-).strip()
-
-PROMPT_2 = dedent(
-    """
-    Generate transcript of YT video with video_id='123' and save it to a file at google drive named 'transcript.txt'.
-    """
-).strip()
-
-PROMPT_3 = dedent(
-    """
-    Generate transcript of YT video with video_id='123' and then pass it for deep analysis.
-    Then, let me know what number is included in the end of the transcript.
-    """
-).strip()
-
-PROMPT_4 = dedent(
-    """
-    Generate transcript of YT video with video_id='123' and then pass it for deep analysis. 
-    Then, save both the transcript and the analysis to files at google drive named 
-    'transcript.txt' and 'analysis.txt' respectively.
-    """
-).strip()
-
 OPENAI_COMPAT_URL = "http://127.0.0.1:1234/v1"
-OPENAI_COMPAT_MODEL = (
-    "speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q8_0.gguf"
-)
 
 
-def _configure_provider_env(monkeypatch: pytest.MonkeyPatch, provider: str) -> str:
+def _configure_provider_env(monkeypatch: pytest.MonkeyPatch, provider: str) -> None:
     # Integration tests are expected to run with project-local `.env` and should not
     # require manual `export ...` in the shell.
     load_dotenv(verbose=True)
@@ -87,7 +47,7 @@ def _configure_provider_env(monkeypatch: pytest.MonkeyPatch, provider: str) -> s
             )
         monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
         monkeypatch.delenv("OPENAI_API_BASE", raising=False)
-        return os.environ.get("TCR_INTEGRATION_OPENAI_MODEL", "gpt-4.1-mini")
+        return
 
     if provider == "openai-compat":
         if not os.environ.get("OPENAI_COMPAT_API_KEY", "").strip() and not os.environ.get(
@@ -100,7 +60,7 @@ def _configure_provider_env(monkeypatch: pytest.MonkeyPatch, provider: str) -> s
 
         monkeypatch.setenv("OPENAI_BASE_URL", OPENAI_COMPAT_URL)
         monkeypatch.setenv("OPENAI_API_BASE", OPENAI_COMPAT_URL)
-        return OPENAI_COMPAT_MODEL
+        return
 
     raise ValueError(f"unknown provider: {provider!r}")
 
@@ -125,145 +85,75 @@ def _assert_internal_resolve_uses_opaque_reference(calls, opaque_reference: str)
             )
 
 
-@pytest.mark.parametrize(
-    (
-        "provider",
-        "prompt",
-        "required_tools",
-        "forbidden_tools",
-        "opaque_pass_through_expectations",
-        "expect_internal_resolve",
-    ),
-    [
-        (provider, *scenario)
-        for provider in ("openai", "openai-compat")
-        for scenario in [
-            (
-                PROMPT_1,
-                {"yt_transcribe", "deep_check"},
-                {"google_drive_write_file"},
-                [
-                    OpaquePassThroughExpectation(
-                        source_tool_name="yt_transcribe",
-                        destination_tool_name="deep_check",
-                        destination_argument_name="text",
-                    ),
-                ],
-                False,
-            ),
-            (
-                PROMPT_2,
-                {"yt_transcribe", "google_drive_write_file"},
-                {"deep_check"},
-                [
-                    OpaquePassThroughExpectation(
-                        source_tool_name="yt_transcribe",
-                        destination_tool_name="google_drive_write_file",
-                        destination_argument_name="file_content",
-                        destination_argument_filter={"file_name": "transcript.txt"},
-                    ),
-                ],
-                False,
-            ),
-            (
-                PROMPT_3,
-                {"yt_transcribe", "deep_check"},
-                {"google_drive_write_file"},
-                [
-                    OpaquePassThroughExpectation(
-                        source_tool_name="yt_transcribe",
-                        destination_tool_name="deep_check",
-                        destination_argument_name="text",
-                    ),
-                ],
-                True,
-            ),
-            (
-                PROMPT_4,
-                {"yt_transcribe", "deep_check", "google_drive_write_file"},
-                set(),
-                [
-                    OpaquePassThroughExpectation(
-                        source_tool_name="yt_transcribe",
-                        destination_tool_name="deep_check",
-                        destination_argument_name="text",
-                    ),
-                    OpaquePassThroughExpectation(
-                        source_tool_name="yt_transcribe",
-                        destination_tool_name="google_drive_write_file",
-                        destination_argument_name="file_content",
-                        destination_argument_filter={"file_name": "transcript.txt"},
-                    ),
-                ],
-                False,
-            ),
-        ]
-    ],
-    ids=[
-        f"{provider}-case{case_num}"
-        for provider in ("openai", "openai-compat")
-        for case_num in range(1, 5)
-    ],
-)
+def _assert_tool_calls_expectations(calls, expectations: list[ToolCallExpectation]) -> list[str]:
+    expected_tool_names = [exp.tool_name for exp in expectations]
+    expected_tool_name_set = set(expected_tool_names)
+
+    actual_relevant = [call for call in calls if call.name in expected_tool_name_set]
+    actual_tool_names = [call.name for call in actual_relevant]
+
+    if actual_tool_names != expected_tool_names:
+        raise AssertionError(
+            "tool call sequence mismatch. "
+            f"expected={expected_tool_names!r}, actual={actual_tool_names!r}"
+        )
+
+    opaque_ids_seen: list[str] = []
+    for exp, call in zip(expectations, actual_relevant, strict=True):
+        if exp.opaque_id_input:
+            if not opaque_ids_seen:
+                raise AssertionError(
+                    f"expected {call.name} to use an opaque id as input, but no previous opaque id result exists"
+                )
+            uses_prev_opaque = any(value in opaque_ids_seen for value in call.arguments.values())
+            if not uses_prev_opaque:
+                raise AssertionError(
+                    f"expected {call.name} to receive a previous opaque id as input; "
+                    f"known_opaque_ids={opaque_ids_seen!r}, arguments={call.arguments!r}"
+                )
+
+        if exp.opaque_id_result:
+            if not isinstance(call.result, str) or not call.result.strip():
+                raise AssertionError(f"expected {call.name} to return a string result, got {call.result!r}")
+            if not is_resource_id(call.result):
+                raise AssertionError(f"expected {call.name} result to be an opaque id, got {call.result!r}")
+            opaque_ids_seen.append(call.result)
+
+    return opaque_ids_seen
+
+
 def test_scenarios_integration(
-    pytestconfig: pytest.Config,
     monkeypatch: pytest.MonkeyPatch,
     provider: str,
+    model: str,
+    case_id: str,
     prompt: str,
-    required_tools: set[str],
     forbidden_tools: set[str],
-    opaque_pass_through_expectations: list[OpaquePassThroughExpectation],
+    tool_calls: list[ToolCallExpectation],
     expect_internal_resolve: bool,
 ) -> None:
-    selected_provider = pytestconfig.getoption("--provider")
-    if selected_provider != "all" and provider != selected_provider:
-        pytest.skip(f"--provider={selected_provider!r} excludes provider={provider!r}")
-
-    model = _configure_provider_env(monkeypatch, provider)
+    _configure_provider_env(monkeypatch, provider)
 
     hooks = CaptureToolCalls()
     run_once(prompt=prompt, model=model, initial_kv={}, provider=provider, hooks=hooks)
 
     calls = hooks.tool_calls
 
-    if not required_tools and not forbidden_tools and not opaque_pass_through_expectations and not expect_internal_resolve:
+    if not tool_calls and not forbidden_tools and not expect_internal_resolve:
         if calls:
             tool_names = sorted({call.name for call in calls})
             raise AssertionError(f"expected no tool calls, got {tool_names!r}")
         return
 
-    for tool_name in required_tools:
-        assert_tool_called(calls, tool_name)
-
     for tool_name in forbidden_tools:
         assert_tool_not_called(calls, tool_name)
 
-    transcript_ref: str | None = None
-    needs_transcript_ref = (
-        "yt_transcribe" in required_tools
-        or any(exp.source_tool_name == "yt_transcribe" for exp in opaque_pass_through_expectations)
-        or expect_internal_resolve
-    )
-    if needs_transcript_ref:
-        transcript_ref = require_tool_call_result(calls, "yt_transcribe")
-        if not is_resource_id(transcript_ref):
-            raise AssertionError(
-                f"expected yt_transcribe to return an opaque reference, got {transcript_ref!r}"
-            )
-
-    for exp in opaque_pass_through_expectations:
-        opaque_reference = require_tool_call_result(calls, exp.source_tool_name)
-        assert_opaque_pass_through(
-            calls=calls,
-            opaque_reference=opaque_reference,
-            tool_name=exp.destination_tool_name,
-            argument_name=exp.destination_argument_name,
-            argument_filter=exp.destination_argument_filter,
-        )
+    opaque_ids_seen = _assert_tool_calls_expectations(calls, tool_calls)
 
     if expect_internal_resolve:
-        if transcript_ref is None:
-            transcript_ref = require_tool_call_result(calls, "yt_transcribe")
+        transcript_ref = opaque_ids_seen[0] if opaque_ids_seen else require_tool_call_result(calls, "yt_transcribe")
+        if not is_resource_id(transcript_ref):
+            raise AssertionError(f"expected yt_transcribe to return an opaque reference, got {transcript_ref!r}")
         _assert_internal_resolve_uses_opaque_reference(calls, transcript_ref)
     else:
         _assert_no_unnecessary_resolves(calls)

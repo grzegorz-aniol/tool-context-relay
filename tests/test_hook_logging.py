@@ -2,6 +2,7 @@ import asyncio
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -40,3 +41,22 @@ class HookLoggingTests(unittest.TestCase):
             asyncio.run(handler.on_llm_start(None, None, "You are a helpful assistant.", input_items))
 
         emit_user.assert_not_called()
+
+    def test_can_disable_system_instruction_emission(self):
+        handler = RunHookHandler(show_system_instruction=False)
+        input_items: list[object] = []
+
+        with patch("tool_context_relay.agent.handler.emit_system") as emit_system:
+            asyncio.run(handler.on_llm_start(None, None, "You are a helpful assistant.", input_items))
+
+        emit_system.assert_not_called()
+
+    def test_emits_agent_instructions_when_system_prompt_missing(self):
+        handler = RunHookHandler()
+        input_items: list[object] = []
+        agent = SimpleNamespace(instructions="SYSTEM FROM AGENT")
+
+        with patch("tool_context_relay.agent.handler.emit_system") as emit_system:
+            asyncio.run(handler.on_llm_start(None, agent, None, input_items))
+
+        emit_system.assert_called_once_with("SYSTEM FROM AGENT")

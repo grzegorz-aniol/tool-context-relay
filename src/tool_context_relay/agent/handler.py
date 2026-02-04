@@ -8,11 +8,13 @@ from agents.lifecycle import RunHooksBase, TAgent
 
 from tool_context_relay.agent.pretty import (
     emit_tool_request,
+    emit_tool_request_opaque,
     emit_tool_response,
     emit_user,
     emit_system,
     emit_assistant,
 )
+from tool_context_relay.tools.tool_relay import is_resource_id
 
 
 def _truncate(value: str, *, max_chars: int = 30) -> str:
@@ -53,6 +55,32 @@ def _format_tool_arguments(tool_arguments: str) -> str:
         return ", ".join(parts)
 
     return _truncate(_stringify_tool_arg_value(parsed))
+
+def _contains_resource_id(value: object) -> bool:
+    if isinstance(value, str):
+        return is_resource_id(value)
+    if isinstance(value, dict):
+        return any(_contains_resource_id(v) for v in value.values())
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return any(_contains_resource_id(v) for v in value)
+    return False
+
+
+def _tool_arguments_contain_resource_id(context: RunContextWrapper[object]) -> bool:
+    tool_arguments = getattr(context, "tool_arguments", None)
+    if not isinstance(tool_arguments, str):
+        return False
+
+    raw = tool_arguments.strip()
+    if not raw:
+        return False
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return "internal://" in raw
+
+    return _contains_resource_id(parsed)
 
 
 def _tool_args_for_log(context: RunContextWrapper[object]) -> str:
@@ -134,10 +162,14 @@ def _user_texts_from_input_items(input_items: Sequence[object]) -> list[str]:
 
 
 class RunHookHandler(RunHooksBase[TContext, TAgent]):
-    def __init__(self) -> None:
+    def __init__(self, *, show_system_instruction: bool = True) -> None:
         super().__init__()
         self._seen_user_texts: set[str] = set()
         self._seen_system_prompts: set[str] = set()
+        self._show_system_instruction = show_system_instruction
+        self.tool_calls: int = 0
+        self.tool_results_with_resource_id: int = 0
+        self.tool_calls_with_resource_id_args: int = 0
 
     async def on_tool_start(
         self,
@@ -145,12 +177,18 @@ class RunHookHandler(RunHooksBase[TContext, TAgent]):
         agent: TAgent,
         tool: Tool,
     ) -> None:
+        self.tool_calls += 1
         tool_name = getattr(tool, "name", str(tool))
         args_str = _tool_args_for_log(context)
+        has_resource_id_arg = _tool_arguments_contain_resource_id(context)
+        if has_resource_id_arg:
+            self.tool_calls_with_resource_id_args += 1
+
+        emitter = emit_tool_request_opaque if has_resource_id_arg else emit_tool_request
         if args_str:
-            emit_tool_request(f"{tool_name}({args_str})")
+            emitter(f"{tool_name}({args_str})")
         else:
-            emit_tool_request(tool_name)
+            emitter(tool_name)
 
     async def on_tool_end(
         self,
@@ -160,6 +198,8 @@ class RunHookHandler(RunHooksBase[TContext, TAgent]):
         result: str,
     ) -> None:
         tool_name = getattr(tool, "name", str(tool))
+        if is_resource_id(result):
+            self.tool_results_with_resource_id += 1
         emit_tool_response(f"{tool_name} -> {result}")
 
     async def on_llm_start(
@@ -169,11 +209,16 @@ class RunHookHandler(RunHooksBase[TContext, TAgent]):
         system_prompt: Optional[str],
         input_items: list[TResponseInputItem],
     ) -> None:
-        if system_prompt:
-            prompt = system_prompt.strip()
-            if prompt and prompt not in self._seen_system_prompts:
-                self._seen_system_prompts.add(prompt)
-                emit_system(prompt)
+        if self._show_system_instruction:
+            prompt_source = system_prompt
+            if prompt_source is None and agent is not None:
+                prompt_source = str(getattr(agent, "instructions", "") or "")
+
+            if prompt_source:
+                prompt = prompt_source.strip()
+                if prompt and prompt not in self._seen_system_prompts:
+                    self._seen_system_prompts.add(prompt)
+                    emit_system(prompt)
 
         for text in _user_texts_from_input_items(input_items):
             if text in self._seen_user_texts:

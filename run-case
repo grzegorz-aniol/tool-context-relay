@@ -54,16 +54,15 @@ case_id="${case_id#./}"
 case_id="${case_id#case}"
 case_id="case${case_id}"
 
-case_file="${repo_root}/prompt_cases/${case_id}.txt"
-if [ ! -f "$case_file" ]; then
-  echo "Unknown case-id: ${case_id}. Expected e.g. 'case1' (file: ${case_file})." >&2
-  exit 2
-fi
-
-# Prompts are stored as single-line text; keep it that way for argv safety.
-prompt="$(tr -d '\n' < "$case_file")"
-if [ -z "$prompt" ]; then
-  echo "Prompt file is empty: ${case_file}" >&2
+case_file_md="${repo_root}/prompt_cases/${case_id}.md"
+case_file_txt="${repo_root}/prompt_cases/${case_id}.txt"
+case_file=""
+if [ -f "$case_file_md" ]; then
+  case_file="$case_file_md"
+elif [ -f "$case_file_txt" ]; then
+  case_file="$case_file_txt"
+else
+  echo "Unknown case-id: ${case_id}. Expected e.g. 'case1' (file: ${case_file_md})." >&2
   exit 2
 fi
 
@@ -141,7 +140,7 @@ if [ "$provider" = "openai-compat" ] && [ "$has_endpoint" -eq 0 ]; then
   fi
 fi
 
-expanded_argv="${expanded_argv} $(quote_sh "$prompt")"
+expanded_argv="${expanded_argv} $(quote_sh --file) $(quote_sh "$case_file")"
 
 eval "set -- ${expanded_argv# }"
 exec uv run tool-context-relay "$@"

@@ -70,8 +70,16 @@ so the model can inspect just what’s needed rather than pulling the entire pay
 
 ## Examples (from integration tests)
 
-All prompts below come directly from `tests/integration/test_scenarios_integration.py`.
+All prompts below come directly from `prompt_cases/`.
 The important part is that long data moves between tools as an opaque `internal://...` reference.
+
+Prompt cases are Markdown files with YAML frontmatter. The frontmatter drives integration assertions:
+
+- `tool_calls`: ordered list of expected tool calls; repeated `tool_name` entries mean multiple expected calls
+- `opaque_id_input`: (per entry) expects the call to receive a previously returned `internal://...` id as an argument value
+- `opaque_id_result`: (per entry) expects the call result to be an `internal://...` id
+- `forbidden_tools`: tool names that must not be called
+- `expect_internal_resolve`: whether `internal_resource_*` resolving calls are allowed/required
 
 ### Example 1: transcript → deep analysis (pass-through, no resolving)
 
@@ -133,6 +141,22 @@ that teaches the model:
 
 This repo includes such an instruction block in the agent definition (see `src/tool_context_relay/agent/agent.py`).
 
+## Test results
+
+I experimented with a few models to verify the concept. I tried to pickup both strong and older/weaker models, to see how well they follow the opaque ID handling instructions. I tested with additional few-shot examples (default CLI argument) and zero-shot prompts.
+
+I tested Tool Context Relay with following models:
+
+| Model       | Prompt# | Few-shot | Resolve success |
+|-------------|---------|-----|----------------|
+| gpt-4o-mini | 1       | ✔    | ✅              |
+| gpt-4o-mini | 2       | ✔   | ✅              |
+| qwen-3b:Q8_0 | 1       | ✔   | ✅              |
+| qwen-3b:Q8_0 | 2       | ✔   | ✅              |
+| qwen-3b:Q8_0 | 3       | ✔   | ✅              |
+| qwen-3b:Q8_0 | 4       | ✔   | ✅              |
+| qwen-3b:Q8_0 | 5       | ✔   | ❌               |
+
 ---
 
 ## Technical details
@@ -158,6 +182,15 @@ Run once with a prompt:
 
 `tool-context-relay "Generate transcript of YT video with video_id='123' and then pass it for deep analysis."`
 
+Run from a prompt-case file (Markdown). If the file starts with YAML frontmatter, the CLI validates tool-call behavior
+against that metadata; if there is no frontmatter, it just executes the prompt:
+
+`tool-context-relay --file prompt_cases/case1.md`
+
+Run multiple files via a wildcard pattern:
+
+`tool-context-relay --glob "prompt_cases/*.md"`
+
 Dump final context as JSON to stderr:
 
 `tool-context-relay "..." --dump-context`
@@ -165,6 +198,10 @@ Dump final context as JSON to stderr:
 Print tool definitions (name/description/arg schema) before running:
 
 `tool-context-relay "..." --print-tools`
+
+Hide the agent system instruction output (it is shown by default):
+
+`tool-context-relay --no-show-system-instruction "..."`
 
 Use a non-default OpenAI-compatible endpoint:
 
@@ -195,6 +232,14 @@ Run without syncing or activating a local venv:
 
 - Unit tests + compile checks: `make ci`
 - Integration tests (require API key + reachable endpoint): `make integration`
+
+You can also filter integration scenarios:
+
+- Providers: `uv run pytest -m integration -v tests/integration/ --provider openai`
+- Models: `uv run pytest -m integration -v tests/integration/ --model gpt-4.1-mini`
+- Prompt cases: `uv run pytest -m integration -v tests/integration/ --prompt-case case1`
+
+`--model` overrides the configured model list (env defaults). Use `--model all` to disable the override and use defaults.
 
 ### Codex MCP (project-scoped)
 

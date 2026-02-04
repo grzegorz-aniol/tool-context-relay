@@ -7,7 +7,15 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tool_context_relay.pretty import emit_assistant, emit_default, emit_tool_request, emit_tool_response, emit_user
+from tool_context_relay.pretty import (
+    emit_assistant,
+    emit_default,
+    emit_info,
+    emit_tool_request,
+    emit_tool_request_opaque,
+    emit_tool_response,
+    emit_user,
+)
 
 
 class _TtyStringIO(io.StringIO):
@@ -52,6 +60,20 @@ class PrettyTests(unittest.TestCase):
             emit_tool_response("hello", stream=stream, width=120)
         out = stream.getvalue()
         self.assertTrue(out.startswith("\n\x1b[32m<tool result>\x1b[0m\n\x1b[32mhello\x1b[0m\n"))
+
+    def test_tool_call_with_opaque_is_cyan_on_tty(self):
+        stream = _TtyStringIO()
+        with patch.dict(os.environ, {}, clear=True):
+            emit_tool_request_opaque("hello", stream=stream, width=120)
+        out = stream.getvalue()
+        self.assertTrue(out.startswith("\n\x1b[36m<tool call>\x1b[0m\n\x1b[36mhello\x1b[0m\n"))
+
+    def test_info_is_pink_on_tty(self):
+        stream = _TtyStringIO()
+        with patch.dict(os.environ, {}, clear=True):
+            emit_info("hello", stream=stream, width=120)
+        out = stream.getvalue()
+        self.assertTrue(out.startswith("\n\x1b[38;5;213m<info>\x1b[0m\n\x1b[38;5;213mhello\x1b[0m\n"))
 
     def test_no_color_disables_colors(self):
         stream = _TtyStringIO()

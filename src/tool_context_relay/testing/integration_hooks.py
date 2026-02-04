@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Awaitable, Callable, cast
 
 from agents import RunContextWrapper, Tool
 from agents.lifecycle import RunHooksBase, TAgent
+from agents import Agent, ModelResponse, TResponseInputItem
 
 
 @dataclass
@@ -16,9 +17,18 @@ class CapturedToolCall:
 
 
 class CaptureToolCalls(RunHooksBase[object, TAgent]):
-    def __init__(self) -> None:
+    def __init__(self, *, delegate: RunHooksBase[object, TAgent] | None = None) -> None:
         super().__init__()
+        self._delegate = delegate
         self.tool_calls: list[CapturedToolCall] = []
+
+    async def _maybe_delegate(self, method_name: str, *args: object, **kwargs: object) -> None:
+        if self._delegate is None:
+            return
+        method = getattr(self._delegate, method_name, None)
+        if method is None:
+            return
+        await cast(Callable[..., Awaitable[None]], method)(*args, **kwargs)
 
     async def on_tool_start(
         self,
@@ -26,6 +36,7 @@ class CaptureToolCalls(RunHooksBase[object, TAgent]):
         agent: TAgent,
         tool: Tool,
     ) -> None:
+        await self._maybe_delegate("on_tool_start", context, agent, tool)
         raw_args = getattr(context, "tool_arguments", None)
         arguments: dict[str, Any] = {}
         if isinstance(raw_args, str) and raw_args.strip():
@@ -46,6 +57,7 @@ class CaptureToolCalls(RunHooksBase[object, TAgent]):
         tool: Tool,
         result: str,
     ) -> None:
+        await self._maybe_delegate("on_tool_end", context, agent, tool, result)
         tool_name = getattr(tool, "name", str(tool))
         for call in reversed(self.tool_calls):
             if call.name == tool_name and call.result is None:
@@ -53,6 +65,23 @@ class CaptureToolCalls(RunHooksBase[object, TAgent]):
                 return
 
         self.tool_calls.append(CapturedToolCall(name=tool_name, arguments={}, result=result))
+
+    async def on_llm_start(
+        self,
+        context: RunContextWrapper[object],
+        agent: Agent[object],
+        system_prompt: str | None,
+        input_items: list[TResponseInputItem],
+    ) -> None:
+        await self._maybe_delegate("on_llm_start", context, agent, system_prompt, input_items)
+
+    async def on_llm_end(
+        self,
+        context: RunContextWrapper[object],
+        agent: TAgent,
+        response: ModelResponse,
+    ) -> None:
+        await self._maybe_delegate("on_llm_end", context, agent, response)
 
 
 def require_tool_call_result(calls: list[CapturedToolCall], tool_name: str) -> str:
@@ -94,4 +123,3 @@ def assert_opaque_pass_through(
     raise AssertionError(
         f"expected {tool_name} to be called with {argument_name}={opaque_reference!r}{filter_s}"
     )
-

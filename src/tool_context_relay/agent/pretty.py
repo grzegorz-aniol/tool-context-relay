@@ -11,7 +11,9 @@ _ANSI_GREEN = "\x1b[32m"
 _ANSI_YELLOW = "\x1b[33m"
 _ANSI_LIGHT_YELLOW = "\x1b[38;5;229m"
 _ANSI_MAGENTA = "\x1b[35m"
+_ANSI_PINK = "\x1b[38;5;213m"
 _ANSI_DEFAULT = "\x1b[0m"
+_ANSI_RED = "\x1b[31m"
 
 _default_group_by_stream: weakref.WeakKeyDictionary[object, str | None] = weakref.WeakKeyDictionary()
 _default_active_by_stream: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
@@ -142,6 +144,17 @@ def emit_tool_request(text: str, *, stream=None, width: int | None = None) -> No
     )
 
 
+def emit_tool_request_opaque(text: str, *, stream=None, width: int | None = None) -> None:
+    _mark_default_inactive(stream or sys.stdout)
+    _emit(
+        prefix="<tool call>",
+        color=_ANSI_CYAN,
+        text=text,
+        stream=stream or sys.stdout,
+        width=width,
+    )
+
+
 def emit_tool_response(text: str, *, stream=None, width: int | None = None) -> None:
     _mark_default_inactive(stream or sys.stdout)
     _emit(
@@ -149,6 +162,28 @@ def emit_tool_response(text: str, *, stream=None, width: int | None = None) -> N
         color=_ANSI_GREEN,
         text=text,
         stream=stream or sys.stdout,
+        width=width,
+    )
+
+
+def emit_info(text: str, *, stream=None, width: int | None = None) -> None:
+    _mark_default_inactive(stream or sys.stdout)
+    _emit(
+        prefix="<info>",
+        color=_ANSI_PINK,
+        text=text,
+        stream=stream or sys.stdout,
+        width=width,
+    )
+
+
+def emit_error(text: str, *, stream=None, width: int | None = None) -> None:
+    _mark_default_inactive(stream or sys.stderr)
+    _emit(
+        prefix="<error>",
+        color=_ANSI_RED,
+        text=text,
+        stream=stream or sys.stderr,
         width=width,
     )
 
