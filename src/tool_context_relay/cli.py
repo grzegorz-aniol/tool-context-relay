@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import json
 import os
 import sys
@@ -21,6 +22,14 @@ from tool_context_relay.testing.integration_hooks import (
     assert_tool_not_called,
 )
 from tool_context_relay.tools.tool_relay import is_resource_id
+
+
+@dataclass(frozen=True)
+class FileRunResult:
+    file_path: Path
+    case_id: str | None
+    status: str
+    reasons: list[str]
 
 
 def _has_env_endpoint_override() -> bool:
@@ -508,6 +517,7 @@ def _run_from_files(
 
     all_passed = True
     total_files = len(files)
+    results: list[FileRunResult] = []
 
     for idx, file_path in enumerate(files, 1):
         emit_info(f"\n[{idx}/{total_files}] Running: {file_path}", stream=sys.stdout)
@@ -517,6 +527,14 @@ def _run_from_files(
         except (ValueError, TypeError) as e:
             emit_error(f"Failed to load {file_path}: {e}", stream=sys.stderr)
             all_passed = False
+            results.append(
+                FileRunResult(
+                    file_path=file_path,
+                    case_id=None,
+                    status="error",
+                    reasons=[f"load: {e}"],
+                )
+            )
             continue
 
         # Run the prompt with tool call capture
@@ -536,6 +554,14 @@ def _run_from_files(
         except Exception as e:
             emit_error(f"Error running {file_path}: {e}", stream=sys.stderr)
             all_passed = False
+            results.append(
+                FileRunResult(
+                    file_path=file_path,
+                    case_id=case.case_id if case is not None else None,
+                    status="error",
+                    reasons=[f"run: {e}"],
+                )
+            )
             continue
 
         if dump_context:
@@ -549,10 +575,34 @@ def _run_from_files(
                 emit_error(f"Validation FAILED for {file_path}:", stream=sys.stderr)
                 for error in errors:
                     emit_error(f"  - {error}", stream=sys.stderr)
+                results.append(
+                    FileRunResult(
+                        file_path=file_path,
+                        case_id=case.case_id,
+                        status="failed",
+                        reasons=errors,
+                    )
+                )
             else:
                 emit_info(f"  ✓ Validation PASSED for {case.case_id}", stream=sys.stdout)
+                results.append(
+                    FileRunResult(
+                        file_path=file_path,
+                        case_id=case.case_id,
+                        status="passed",
+                        reasons=[],
+                    )
+                )
         else:
             emit_info(f"  (no validation - no frontmatter)", stream=sys.stdout)
+            results.append(
+                FileRunResult(
+                    file_path=file_path,
+                    case_id=None,
+                    status="no_validation",
+                    reasons=[],
+                )
+            )
 
         # Print summary
         emit_info(
@@ -562,6 +612,25 @@ def _run_from_files(
         )
 
     emit_info(f"\n{'=' * 50}", stream=sys.stdout)
+    emit_info("Run summary:", stream=sys.stdout)
+    for result in results:
+        label = result.case_id or str(result.file_path)
+        if result.case_id:
+            label = f"{label} ({result.file_path})"
+
+        if result.status == "passed":
+            emit_info(f"  ✓ {label}", stream=sys.stdout)
+        elif result.status == "no_validation":
+            emit_info(f"  • {label} (no validation)", stream=sys.stdout)
+        elif result.status == "failed":
+            emit_error(f"  ✗ {label}", stream=sys.stderr)
+            for reason in result.reasons:
+                emit_error(f"    - {reason}", stream=sys.stderr)
+        else:
+            emit_error(f"  ✗ {label} ({result.status})", stream=sys.stderr)
+            for reason in result.reasons:
+                emit_error(f"    - {reason}", stream=sys.stderr)
+
     if all_passed:
         emit_info(f"All {total_files} file(s) passed.", stream=sys.stdout)
         return 0

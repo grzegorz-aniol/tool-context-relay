@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tool_context_relay.cli import _parse_kv, main
+from tool_context_relay.cli import _parse_kv, _run_from_files, main
 from tool_context_relay.cli import _normalize_model_for_agents
 from tool_context_relay.cli import _format_startup_config_line
 
@@ -295,3 +295,57 @@ class CliTests(unittest.TestCase):
             self.assertEqual(stderr.getvalue(), "")
             called_files = [Path(p) for p in run_from_files.call_args.kwargs["files"]]
             self.assertEqual(called_files, [root / "a.md", root / "b.md"])
+
+    def test_run_from_files_prints_end_summary_with_pass_fail_and_reasons(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pass_path = root / "pass.md"
+            fail_path = root / "fail.md"
+            broken_path = root / "broken.md"
+
+            pass_path.write_text(
+                "---\n"
+                "id: passcase\n"
+                "---\n"
+                "hello\n",
+                encoding="utf-8",
+            )
+            fail_path.write_text(
+                "---\n"
+                "id: failcase\n"
+                "tool_calls:\n"
+                "  - tool_name: yt_transcribe\n"
+                "---\n"
+                "hello\n",
+                encoding="utf-8",
+            )
+            broken_path.write_text("---\n" "id: broken\n", encoding="utf-8")
+
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with (
+                patch(
+                    "tool_context_relay.main.run_once",
+                    return_value=("ok", SimpleNamespace(kv={})),
+                ),
+                redirect_stdout(stdout),
+                redirect_stderr(stderr),
+            ):
+                code = _run_from_files(
+                    files=[pass_path, fail_path, broken_path],
+                    model="gpt-4.1-mini",
+                    provider="openai",
+                    initial_kv={},
+                    print_tools=False,
+                    fewshots=False,
+                    show_system_instruction=False,
+                    dump_context=False,
+                )
+
+            self.assertEqual(code, 1)
+            self.assertIn("Run summary:", stdout.getvalue())
+            self.assertIn("passcase", stdout.getvalue())
+            self.assertIn("failcase", stderr.getvalue())
+            self.assertIn("broken.md", stderr.getvalue())
+            self.assertIn("tool call sequence mismatch", stderr.getvalue())
+            self.assertIn("missing YAML frontmatter closing delimiter", stderr.getvalue())

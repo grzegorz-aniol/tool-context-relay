@@ -145,17 +145,43 @@ This repo includes such an instruction block in the agent definition (see `src/t
 
 I experimented with a few models to verify the concept. I tried to pickup both strong and older/weaker models, to see how well they follow the opaque ID handling instructions. I tested with additional few-shot examples (default CLI argument) and zero-shot prompts.
 
-I tested Tool Context Relay with following models:
+I tested Tool Context Relay with following models
 
-| Model       | Prompt# | Few-shot | Resolve success |
-|-------------|---------|-----|----------------|
-| gpt-4o-mini | 1       | ✔    | ✅              |
-| gpt-4o-mini | 2       | ✔   | ✅              |
-| qwen-3b:Q8_0 | 1       | ✔   | ✅              |
-| qwen-3b:Q8_0 | 2       | ✔   | ✅              |
-| qwen-3b:Q8_0 | 3       | ✔   | ✅              |
-| qwen-3b:Q8_0 | 4       | ✔   | ✅              |
-| qwen-3b:Q8_0 | 5       | ✔   | ❌               |
+### GPT
+
+| Model        | Prompt# | Few-shot | Resolve success |
+|--------------|---------|----------|--------------|
+| gpt-4o-mini  | 1       | -        | ✅            |
+| gpt-4o-mini  | 2       | -        | ❌            |
+| gpt-4o-mini  | 3       | -        | ✅            |
+| gpt-4o-mini  | 4       | -        | ❌            |
+| gpt-4o-mini  | 1       | ✔        | ✅            |
+| gpt-4o-mini  | 2       | ✔        | ✅            |
+| gpt-4o-mini  | 3       | ✔        | ✅            |
+| gpt-4o-mini  | 4       | ✔        | ✅            |
+ | ========   | ======== | ========   | ========  |
+| gpt-4o       | 1       | -        | ✅            |
+| gpt-4o       | 2       | -        | ✅            |
+| gpt-4o       | 3       | -        | ✅            |
+| gpt-4o       | 4       | -        | ✅            |
+| gpt-4o       | 1       | ✔        | ✅            |
+| gpt-4o       | 2       | ✔        | ✅            |
+| gpt-4o       | 3       | ✔        | ✅            |
+| gpt-4o       | 4       | ✔        | ✅            |
+
+### Qwen-3b:Q8_0
+
+ | Model        | Prompt# | Few-shot | Resolve success |
+|--------------|---------|----------|--------------|
+| qwen-3b:Q8_0 | 1       | -        | ❌            |
+| qwen-3b:Q8_0 | 2       | -        | ✅            |
+| qwen-3b:Q8_0 | 3       | -        | ❌            |
+| qwen-3b:Q8_0 | 4       | -        | ❌            |
+| qwen-3b:Q8_0 | 1       | ✔        | ✅            |
+| qwen-3b:Q8_0 | 2       | ✔        | ✅            |
+| qwen-3b:Q8_0 | 3       | ✔        | ✅            |
+| qwen-3b:Q8_0 | 4       | ✔        | ✅            |
+| qwen-3b:Q8_0 | 5       | ✔        | ❌            |
 
 ---
 
