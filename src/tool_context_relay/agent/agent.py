@@ -3,7 +3,7 @@ from __future__ import annotations
 from inspect import getdoc
 from textwrap import dedent
 
-from agents import Agent, RunContextWrapper, function_tool
+from agents import Agent, ModelSettings, RunContextWrapper, function_tool
 from agents.models.interface import Model
 
 from tool_context_relay.agent.context import RelayContext
@@ -76,7 +76,7 @@ def internal_resource_length(ctx: RunContextWrapper[RelayContext], opaque_refere
     return str(len(value))
 
 
-def build_agent(*, model: str | Model, fewshots: bool = True) -> Agent:
+def build_agent(*, model: str | Model, fewshots: bool = True, temperature: float | None = None) -> Agent:
 
     # Prepare tool definitions based on python functions (we use explicitly function_tool decorator)
     tool_yt_transcribe = function_tool(yt_transcribe)
@@ -172,6 +172,10 @@ def build_agent(*, model: str | Model, fewshots: bool = True) -> Agent:
         instruction_parts.append(small_model_examples)
     instructions = "\n\n".join(instruction_parts)
 
+    agent_kwargs: dict[str, object] = {}
+    if temperature is not None:
+        agent_kwargs["model_settings"] = ModelSettings(temperature=temperature)
+
     return Agent(
         name="Tool Context Relay",
         instructions=instructions,
@@ -180,4 +184,5 @@ def build_agent(*, model: str | Model, fewshots: bool = True) -> Agent:
             tool_yt_transcribe, tool_deep_check, tool_google_drive_write_file,
             tool_internal_resource_read, tool_internal_resource_read_slice, tool_internal_resource_length
         ],
+        **agent_kwargs,
     )

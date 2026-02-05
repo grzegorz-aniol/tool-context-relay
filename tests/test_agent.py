@@ -3,6 +3,7 @@ import unittest
 from inspect import getdoc
 from pathlib import Path
 import re
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -39,6 +40,20 @@ def extract_google_style_args_section(doc: str) -> dict[str, str]:
 
 
 class AgentTests(unittest.TestCase):
+    def test_agent_does_not_set_temperature_by_default(self):
+        with patch("tool_context_relay.agent.agent.Agent") as agent_cls:
+            build_agent(model="test", temperature=None)
+            self.assertNotIn("model_settings", agent_cls.call_args.kwargs)
+
+    def test_agent_sets_temperature_via_model_settings(self):
+        from agents import ModelSettings
+
+        with patch("tool_context_relay.agent.agent.Agent") as agent_cls:
+            build_agent(model="test", temperature=0.3)
+            settings = agent_cls.call_args.kwargs.get("model_settings")
+            self.assertIsInstance(settings, ModelSettings)
+            self.assertEqual(getattr(settings, "temperature", None), 0.3)
+
     def test_agent_tools_expose_underlying_docstrings(self):
         agent = build_agent(model="test")
         tools_by_name = {tool.name: tool for tool in agent.tools}

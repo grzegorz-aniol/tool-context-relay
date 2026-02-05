@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -67,6 +68,7 @@ def _format_startup_config_line(
     model_requested: str,
     model_effective: str,
     endpoint: str | None,
+    temperature: float | None,
 ) -> str:
     parts: list[str] = ["Config used:"]
 
@@ -82,6 +84,9 @@ def _format_startup_config_line(
 
     if endpoint:
         parts.append(f"* endpoint={endpoint}")
+
+    if temperature is not None:
+        parts.append(f"* temperature={temperature}")
 
     return "\n".join(parts)
 
@@ -208,6 +213,7 @@ def _run_single_prompt(
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
+    temperature: float | None,
     capture_calls: bool = False,
 ) -> tuple[str, Any, CaptureToolCalls | None]:
     """Run a single prompt and optionally capture tool calls.
@@ -229,6 +235,7 @@ def _run_single_prompt(
         provider=provider,
         print_tools=print_tools,
         fewshots=fewshots,
+        temperature=temperature,
         hooks=hooks,
     )
 
@@ -301,6 +308,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--temperature",
+        default=None,
+        type=float,
+        metavar="FLOAT",
+        help=(
+            "Sampling temperature for non-reasoning models (e.g. 0.1). "
+            "If omitted, temperature is not set. "
+            "For reasoning models, this flag is ignored."
+        ),
+    )
+    parser.add_argument(
         "--provider",
         default="auto",
         choices=["auto", "openai", "openai-compat"],
@@ -336,6 +354,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print tool definitions (name/description/arg schema) to stderr before running the agent.",
     )
     return parser
+
+
+def _is_reasoning_model(*, model: str) -> bool:
+    """Heuristic: treat 'gpt-5*' and 'o*' model IDs as reasoning models.
+
+    This mirrors patterns used in other projects in this workspace and avoids
+    sending unsupported sampling params (e.g., temperature) to reasoning models.
+    """
+    normalized = model.strip().lower()
+    if not normalized:
+        return False
+    if normalized.startswith("gpt-5"):
+        return True
+    if normalized.startswith("o1") or normalized.startswith("o3") or normalized.startswith("o4"):
+        return True
+    return False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -386,7 +420,22 @@ def main(argv: list[str] | None = None) -> int:
         print("Prompt must not be empty.", file=sys.stderr)
         return 2
 
+    temperature: float | None = args.temperature
+    if temperature is not None:
+        if not math.isfinite(temperature):
+            print("Temperature must be a finite number.", file=sys.stderr)
+            return 2
+        if temperature < 0.0 or temperature > 2.0:
+            print("Temperature must be between 0.0 and 2.0.", file=sys.stderr)
+            return 2
+
     model = _normalize_model_for_agents(model=args.model)
+    if temperature is not None and _is_reasoning_model(model=model):
+        emit_info(
+            f"Ignoring --temperature={temperature} because model '{model}' looks like a reasoning model.",
+            stream=sys.stdout,
+        )
+        temperature = None
     endpoint_to_print = None
     if has_endpoint_override:
         endpoint_to_print = (os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE") or "").strip() or None
@@ -397,6 +446,7 @@ def main(argv: list[str] | None = None) -> int:
         model_requested=args.model,
         model_effective=model,
         endpoint=endpoint_to_print,
+        temperature=temperature,
     )
     emit_info(config_line, stream=sys.stdout)
 
@@ -432,6 +482,7 @@ def main(argv: list[str] | None = None) -> int:
                 print_tools=args.print_tools,
                 fewshots=args.fewshots,
                 show_system_instruction=args.show_system_instruction,
+                temperature=temperature,
                 dump_context=args.dump_context,
             )
         else:
@@ -444,6 +495,7 @@ def main(argv: list[str] | None = None) -> int:
                 print_tools=args.print_tools,
                 fewshots=args.fewshots,
                 show_system_instruction=args.show_system_instruction,
+                temperature=temperature,
                 dump_context=args.dump_context,
             )
     except ModuleNotFoundError as e:
@@ -465,6 +517,7 @@ def _run_literal_prompt(
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
+    temperature: float | None,
     dump_context: bool,
 ) -> int:
     """Run a literal prompt (no validation)."""
@@ -479,6 +532,7 @@ def _run_literal_prompt(
         provider=provider,
         print_tools=print_tools,
         fewshots=fewshots,
+        temperature=temperature,
         hooks=hooks,
     )
 
@@ -506,6 +560,7 @@ def _run_from_files(
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
+    temperature: float | None,
     dump_context: bool,
 ) -> int:
     """Run prompts from one or more files.
@@ -549,6 +604,7 @@ def _run_from_files(
                 provider=provider,
                 print_tools=print_tools,
                 fewshots=fewshots,
+                temperature=temperature,
                 hooks=hooks,
             )
         except Exception as e:

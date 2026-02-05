@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Demonstrate a **client-side** pattern for tool-using LLM apps that prevents long tool results from flooding the model context:
+Demonstrate a **client-side** pattern for tool-using agents that prevents long tool results from flooding the model context:
 **Tool Context Relay**.
 
 Instead of injecting long tool outputs into the conversation, the client stores them out-of-band and returns a short,
@@ -62,11 +62,9 @@ so the model can inspect just what’s needed rather than pulling the entire pay
 
 ## Where it doesn’t fit
 
-- When the user explicitly wants the full text in the assistant response.
-- When the model must read and reason over most of the long content (summarization, extraction, classification, etc.).
-  In that case, you can still use opaque references, but you’ll likely need client tools for chunked reads (slice/length) or
+- When you didn't notice any issue with long tool results.
+- When your agent always need to deal with a full value in a context  (summarization, extraction, classification, etc.). In that case, you can still enable opaque references, but model will need to use client tools for chunked reads (slice/length) or
   you may intentionally unbox and include the content.
-- When a downstream tool cannot accept opaque references. (A good client will “try pass-through first”, and fall back to resolving only if needed.)
 
 ## Examples (from integration tests)
 
@@ -147,29 +145,38 @@ I experimented with a few models to verify the concept. I tried to pickup both s
 
 I tested Tool Context Relay with following models
 
-### GPT
+### OpenAI GPT
 
-| Model        | Prompt# | Few-shot | Resolve success |
-|--------------|---------|----------|--------------|
-| gpt-4o-mini  | 1       | -        | ✅            |
-| gpt-4o-mini  | 2       | -        | ❌            |
-| gpt-4o-mini  | 3       | -        | ✅            |
-| gpt-4o-mini  | 4       | -        | ❌            |
-| gpt-4o-mini  | 1       | ✔        | ✅            |
-| gpt-4o-mini  | 2       | ✔        | ✅            |
-| gpt-4o-mini  | 3       | ✔        | ✅            |
-| gpt-4o-mini  | 4       | ✔        | ✅            |
- | ========   | ======== | ========   | ========  |
-| gpt-4o       | 1       | -        | ✅            |
-| gpt-4o       | 2       | -        | ✅            |
-| gpt-4o       | 3       | -        | ✅            |
-| gpt-4o       | 4       | -        | ✅            |
-| gpt-4o       | 1       | ✔        | ✅            |
-| gpt-4o       | 2       | ✔        | ✅            |
-| gpt-4o       | 3       | ✔        | ✅            |
-| gpt-4o       | 4       | ✔        | ✅            |
+| Model | Prompt# | Few-shot | Resolve success |
+|--|---------|----------|-------------|
+| gpt-4o-mini | 1       | -        | ✅           |
+| gpt-4o-mini | 2       | -        | ❌           |
+| gpt-4o-mini | 3       | -        | ✅           |
+| gpt-4o-mini | 4       | -        | ❌           |
+| gpt-4o-mini | 1       | ✔        | ✅           |
+| gpt-4o-mini | 2       | ✔        | ✅           |
+| gpt-4o-mini | 3       | ✔        | ✅           |
+| gpt-4o-mini | 4       | ✔        | ✅           |
+ | ======== | ======== | ========   | ========  |
+| gpt-4o | 1       | -        | ✅           |
+| gpt-4o | 2       | -        | ✅           |
+| gpt-4o | 3       | -        | ✅           |
+| gpt-4o | 4       | -        | ✅           |
+| gpt-4o | 1       | ✔        | ✅           |
+| gpt-4o | 2       | ✔        | ✅           |
+| gpt-4o | 3       | ✔        | ✅           |
+| gpt-4o | 4       | ✔        | ✅           |
+ | ======== | ======== | ========   | ========  |
+| gpt-5.2 | 1       | -        | ✅           |
+| gpt-5.2 | 2       | -        | ❌            |
+| gpt-5.2 | 3       | -        | ❌           |
+| gpt-5.2 | 4       | -        | ✅           |
+| gpt-5.2 | 1       | ✔        | ✅           |
+| gpt-5.2 | 2       | ✔        | ✅           |
+| gpt-5.2 | 3       | ✔        | ✅           |
+| gpt-5.2 | 4       | ✔        | ✅           |
 
-### Qwen-3b:Q8_0
+### Qwen
 
  | Model        | Prompt# | Few-shot | Resolve success |
 |--------------|---------|----------|--------------|
@@ -234,6 +241,10 @@ Use a non-default OpenAI-compatible endpoint:
 `tool-context-relay --provider openai-compat --endpoint http://localhost:11434/v1 "..."`
 
 If you omit `--provider`, the default is `--provider auto` which chooses `openai-compat` when an endpoint override is present.
+
+Set sampling temperature (non-reasoning models only):
+
+`tool-context-relay --temperature 0.1 "..."` (ignored for reasoning models like `gpt-5*`)
 
 ### Color output
 

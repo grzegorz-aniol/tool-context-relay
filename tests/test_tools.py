@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from tool_context_relay.tools.tool_relay import tool_relay, unbox_value
+from tool_context_relay.tools.mcp_yt import fun_get_transcript
 
 
 class ToolsTests(unittest.TestCase):
@@ -33,3 +34,6 @@ class ToolsTests(unittest.TestCase):
         self.assertTrue(resource_id.startswith("internal://"))
         self.assertNotIn("-", resource_id)
         self.assertEqual(unbox_value(resource_id), "x" * 2048)
+
+    def test_fun_get_transcript_returns_short_value_for_special_id(self):
+        self.assertEqual(fun_get_transcript("999"), "Welcome in a new episode and good bye")

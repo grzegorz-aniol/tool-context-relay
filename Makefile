@@ -1,6 +1,7 @@
 .PHONY: ci integration
 
-OPENAI_MODEL ?= gpt-4o
+#OPENAI_MODEL ?= gpt-4o
+OPENAI_MODEL ?= gpt-5.2
 #BIELIK_MODEL ?= speakleash_Bielik-11B-v3.0-Instruct-GGUF_Bielik-11B-v3.0-Instruct.f16.gguf
 BIELIK_MODEL ?= speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q8_0.gguf
 
@@ -34,6 +35,7 @@ test-bielik-fewshots:
 		--provider openai-compat \
 		--endpoint http://127.0.0.1:1234/v1 \
 		--model $(BIELIK_MODEL) \
+		--temperature 0.1 \
 		--no-show-system-instruction \
 		--fewshots \
 		--glob "prompt_cases/*.md"
@@ -43,6 +45,7 @@ test-bielik-oneshot:
 		--provider openai-compat \
 		--endpoint http://127.0.0.1:1234/v1 \
 		--model $(BIELIK_MODEL) \
+		--temperature 0.1 \
 		--no-show-system-instruction \
 		--no-fewshots \
 		--glob "prompt_cases/*.md"

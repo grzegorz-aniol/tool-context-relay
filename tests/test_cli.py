@@ -38,10 +38,12 @@ class CliTests(unittest.TestCase):
             model_requested="speakleash/Bielik",
             model_effective="speakleash/Bielik",
             endpoint="http://127.0.0.1:1234/v1",
+            temperature=0.1,
         )
         self.assertIn("provider=openai-compat (requested=auto)", line)
         self.assertIn("model=speakleash/Bielik", line)
         self.assertIn("endpoint=http://127.0.0.1:1234/v1", line)
+        self.assertIn("temperature=0.1", line)
 
     def test_normalize_model_for_agents_leaves_plain_models_untouched(self):
         self.assertEqual(_normalize_model_for_agents(model="gpt-4.1-mini"), "gpt-4.1-mini")
@@ -94,6 +96,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("endpoint=http://127.0.0.1:1234/v1", stdout.getvalue())
         self.assertEqual(stderr.getvalue(), "")
         self.assertEqual(run_once.call_args.kwargs["print_tools"], False)
+        self.assertIsNone(run_once.call_args.kwargs["temperature"])
 
     def test_main_print_tools_flag_is_passed_to_runner(self):
         os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
@@ -125,6 +128,68 @@ class CliTests(unittest.TestCase):
         self.assertIn("Config used:", stdout.getvalue())
         self.assertEqual(stderr.getvalue(), "")
         self.assertEqual(run_once.call_args.kwargs["print_tools"], True)
+        self.assertIsNone(run_once.call_args.kwargs["temperature"])
+
+    def test_main_passes_temperature_flag_to_runner(self):
+        os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch(
+                "tool_context_relay.main.run_once",
+                return_value=("ok", SimpleNamespace(kv={})),
+            ) as run_once,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            code = main(
+                [
+                    "--provider",
+                    "openai-compat",
+                    "--endpoint",
+                    "http://127.0.0.1:1234/v1",
+                    "--model",
+                    "gpt-4.1-mini",
+                    "--temperature",
+                    "0.7",
+                    "hi",
+                ]
+            )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(run_once.call_args.kwargs["temperature"], 0.7)
+
+    def test_main_ignores_temperature_for_reasoning_model(self):
+        os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch(
+                "tool_context_relay.main.run_once",
+                return_value=("ok", SimpleNamespace(kv={})),
+            ) as run_once,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            code = main(
+                [
+                    "--provider",
+                    "openai-compat",
+                    "--endpoint",
+                    "http://127.0.0.1:1234/v1",
+                    "--model",
+                    "gpt-5.2",
+                    "--temperature",
+                    "0.7",
+                    "hi",
+                ]
+            )
+
+        self.assertEqual(code, 0)
+        self.assertIn("Ignoring --temperature=0.7", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertIsNone(run_once.call_args.kwargs["temperature"])
 
     def test_main_rejects_openai_provider_with_endpoint(self):
         stdout = io.StringIO()
@@ -339,6 +404,7 @@ class CliTests(unittest.TestCase):
                     print_tools=False,
                     fewshots=False,
                     show_system_instruction=False,
+                    temperature=None,
                     dump_context=False,
                 )
 
