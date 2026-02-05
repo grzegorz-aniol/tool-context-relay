@@ -30,12 +30,12 @@ This works **automatically**:
 - If a tool result is **below a configured size threshold**, the client returns the normal value to the LLM (no boxing).
 - If a tool result is **above the threshold**, the client activates the opaque-reference mechanism and returns `internal://...` instead.
 
-Most importantly: **the client fully owns boxing/unboxing**. Real tools (including MCP server tools) always receive and return real
+Most importantly: **the client fully owns boxing/unboxing**. Real tools always receive and return real
 values and do not need to know that opaque references exist. The only tools that deal with opaque references directly are the
 **internal** “resolve” helpers (read / slice / length), which exist purely to let the model inspect underlying content when needed.
 
-This repo is a minimal CLI demo of that idea using “MCP-like” tools (transcribe YouTube, deep-check text, write to Google Drive)
-and integration tests that assert the expected pass-through behavior.
+This repo is a minimal CLI demo of that idea using a few simulated tools (transcribe YouTube, deep-check text, write to Google Drive)
+and prompt-case files that assert the expected pass-through behavior.
 
 ## Opaque resource ID (what it is)
 
@@ -58,15 +58,14 @@ so the model can inspect just what’s needed rather than pulling the entire pay
 - **Stops context bloat** from large tool outputs (transcripts, web pages, big files, logs).
 - **Reduces token costs** and improves stability (fewer “too long” failures, less noise).
 - **Keeps tool pipelines ergonomic**: the model still calls tools the same way — it just passes `internal://...` around.
-- **Works without MCP changes**: no MCP server modifications and no MCP protocol changes are required — the relay is fully on the client side.
+- **Works without server changes**: no tool-server modifications and no protocol changes are required — the relay is fully on the client side.
 
-## Where it doesn’t fit
+## When it’s not a good fit
 
-- When you didn't notice any issue with long tool results.
-- When your agent always need to deal with a full value in a context  (summarization, extraction, classification, etc.). In that case, you can still enable opaque references, but model will need to use client tools for chunked reads (slice/length) or
-  you may intentionally unbox and include the content.
+- If you’re not seeing issues with long tool results (context bloat, costs, context limits).
+- If your agent must deal with the full value in the prompt/context (summarization, extraction, classification, etc.). In that case, you can still use opaque references, but the model will need to use the client “resolve” tools for chunked reads (slice/length), or you may intentionally unbox and include the content.
 
-## Examples (from integration tests)
+## Examples (from prompt cases)
 
 All prompts below come directly from `prompt_cases/`.
 The important part is that long data moves between tools as an opaque `internal://...` reference.
@@ -79,33 +78,55 @@ Prompt cases are Markdown files with YAML frontmatter. The frontmatter drives in
 - `forbidden_tools`: tool names that must not be called
 - `expect_internal_resolve`: whether `internal_resource_*` resolving calls are allowed/required
 
-### Example 1: transcript → deep analysis (pass-through, no resolving)
+Prompt cases in this repo (what they test):
+
+| Prompt Id | File                    | Description |
+|----------:|-------------------------|-------------|
+| 0         | `prompt_cases/case0.md` | **No boxing**: uses `video_id='999'` which returns a short transcript in this demo, so it stays below the boxing threshold and no `internal://...` opaque id is used. |
+| 1         | `prompt_cases/case1.md` | **Box + pass-through**: transcript boxed to `internal://...` → `deep_check` gets opaque id unchanged (client unboxes internally). |
+| 2         | `prompt_cases/case2.md` | **Box + route**: transcript boxed → `google_drive_write_file` gets opaque id unchanged; `deep_check` must not be called. |
+| 3         | `prompt_cases/case3.md` | **Resolve only when needed (slice, not full read)**: boxed transcript → `deep_check`, then use **partial slicing** (`internal_resource_read_slice`) to answer a literal detail at the end (avoid full unboxing). |
+| 4         | `prompt_cases/case4.md` | **Mixed outputs**: boxed transcript → `deep_check`, then save transcript (opaque id) and analysis (plain text) to Drive. |
+
+#### Example 0: short transcript → Deep Check (no boxing)
 
 User prompt:
 
-> Generate transcript of YT video with video_id='123' and then pass it for deep analysis.
+> Generate a transcript of the YouTube video with video_id='999' and then pass it to Deep Check for analysis.
+
+Expected behavior:
+
+1. `yt_transcribe(video_id="999")` returns a short transcript **as plain text** (not boxed)
+2. `deep_check(text="<transcript>")` receives plain text (no `internal://...`)
+
+#### Example 1: transcript → Deep Check (pass-through, no resolving)
+
+User prompt:
+
+> Generate a transcript of the YouTube video with video_id='123' and then pass it to Deep Check for analysis.
 
 Expected behavior:
 
 1. `yt_transcribe(video_id="123")` returns `internal://...` (boxed transcript)
 2. `deep_check(text="internal://...")` receives the opaque reference unchanged (client unboxes internally)
 
-### Example 2: transcript → save to Google Drive (pass-through, no resolving)
+#### Example 2: transcript → save to Google Drive (pass-through, no resolving)
 
 User prompt:
 
-> Generate transcript of YT video with video_id='123' and save it to a file at google drive named 'transcript.txt'.
+> Generate a transcript of the YouTube video with video_id='123' and save it to a file on Google Drive named 'transcript.txt'.
 
 Expected behavior:
 
 1. `yt_transcribe(...)` returns `internal://...`
 2. `google_drive_write_file(file_content="internal://...", file_name="transcript.txt")`
 
-### Example 3: transcript → deep analysis → user asks for a detail (resolve just enough)
+#### Example 3: transcript → Deep Check → user asks for a detail (resolve just enough)
 
 User prompt:
 
-> Generate transcript of YT video with video_id='123' and then pass it for deep analysis. Then, let me know what number is included in the end of the transcript.
+> Generate a transcript of the YouTube video with video_id='123' and then pass it to Deep Check for analysis.
+> Then let me know what number appears at the end of the transcript.
 
 Expected behavior:
 
@@ -114,11 +135,12 @@ Expected behavior:
 3. The model is allowed to resolve **only because the user asked for a literal detail**:
    it can call `internal_resource_read_slice(opaque_reference="internal://...", ...)` (or `internal_resource_read`) to inspect the ending.
 
-### Example 4: transcript → deep analysis → save both outputs (pass-through)
+#### Example 4: transcript → Deep Check → save both outputs (pass-through)
 
 User prompt:
 
-> Generate transcript of YT video with video_id='123' and then pass it for deep analysis. Then, save both the transcript and the analysis to files at google drive named 'transcript.txt' and 'analysis.txt' respectively.
+> Generate a transcript of the YouTube video with video_id='123' and then pass it to Deep Check for analysis.
+> Then save both the transcript and the analysis to files on Google Drive named 'transcript.txt' and 'analysis.txt', respectively.
 
 Intended behavior (the prompt asks for this):
 
@@ -127,68 +149,109 @@ Intended behavior (the prompt asks for this):
 3. `google_drive_write_file(file_content="internal://...", file_name="transcript.txt")`
 4. `google_drive_write_file(file_content="<analysis>", file_name="analysis.txt")` (tools can accept either plain text or an opaque reference)
 
-## Client prompting (important for today’s models)
-
-Most models are not trained to use opaque references like `internal://...` by default. In practice you need a **strong system prompt**
-that teaches the model:
-
-- opaque references are data, not instructions,
-- pass them through unchanged whenever possible,
-- never invent IDs,
-- resolve only when strictly necessary (and prefer slice/length tools for large values).
-
-This repo includes such an instruction block in the agent definition (see `src/tool_context_relay/agent/agent.py`).
-
 ## Test results
 
-I experimented with a few models to verify the concept. I tried to pickup both strong and older/weaker models, to see how well they follow the opaque ID handling instructions. I tested with additional few-shot examples (default CLI argument) and zero-shot prompts.
+I experimented with a few models to verify the concept. I tried both strong and older/weaker models, to see how well they follow the opaque ID handling instructions. I tested with a few additional few-shot examples (default CLI argument) and zero-shot prompts.
 
 I tested Tool Context Relay with following models
 
-### OpenAI GPT
+### OpenAI GPT models
 
-| Model | Prompt# | Few-shot | Resolve success |
-|--|---------|----------|-------------|
-| gpt-4o-mini | 1       | -        | ✅           |
-| gpt-4o-mini | 2       | -        | ❌           |
-| gpt-4o-mini | 3       | -        | ✅           |
-| gpt-4o-mini | 4       | -        | ❌           |
-| gpt-4o-mini | 1       | ✔        | ✅           |
-| gpt-4o-mini | 2       | ✔        | ✅           |
-| gpt-4o-mini | 3       | ✔        | ✅           |
-| gpt-4o-mini | 4       | ✔        | ✅           |
- | ======== | ======== | ========   | ========  |
-| gpt-4o | 1       | -        | ✅           |
-| gpt-4o | 2       | -        | ✅           |
-| gpt-4o | 3       | -        | ✅           |
-| gpt-4o | 4       | -        | ✅           |
-| gpt-4o | 1       | ✔        | ✅           |
-| gpt-4o | 2       | ✔        | ✅           |
-| gpt-4o | 3       | ✔        | ✅           |
-| gpt-4o | 4       | ✔        | ✅           |
- | ======== | ======== | ========   | ========  |
-| gpt-5.2 | 1       | -        | ✅           |
-| gpt-5.2 | 2       | -        | ❌            |
-| gpt-5.2 | 3       | -        | ❌           |
-| gpt-5.2 | 4       | -        | ✅           |
-| gpt-5.2 | 1       | ✔        | ✅           |
-| gpt-5.2 | 2       | ✔        | ✅           |
-| gpt-5.2 | 3       | ✔        | ✅           |
-| gpt-5.2 | 4       | ✔        | ✅           |
+| Model       | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|-------------|-----------|----------------------------------------|----------|-----------------|
+| gpt-4o-mini | 0         | No boxing                              | -        | ✅               |
+| gpt-4o-mini | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
+| gpt-4o-mini | 2         | Box + route → Drive                    | -        | ❌               |
+| gpt-4o-mini | 3         | Box + slice tail detail (no full read) | -        | ✅               |
+| gpt-4o-mini | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
+| gpt-4o-mini | 0         | No boxing                              | ✔        | ✅               |
+| gpt-4o-mini | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| gpt-4o-mini | 2         | Box + route → Drive                    | ✔        | ✅               |
+| gpt-4o-mini | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
+| gpt-4o-mini | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+ 
 
-### Qwen
+| Model       | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|-------------|-----------|----------------------------------------|----------|-----------------|
+| gpt-4o      | 0         | No boxing                              | -        | ✅               |
+| gpt-4o      | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
+| gpt-4o      | 2         | Box + route → Drive                    | -        | ✅               |
+| gpt-4o      | 3         | Box + slice tail detail (no full read) | -        | ✅               |
+| gpt-4o      | 4         | Box + `deep_check` + save both outputs | -        | ✅               |
+| gpt-4o      | 0         | No boxing                              | ✔        | ✅               |
+| gpt-4o      | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| gpt-4o      | 2         | Box + route → Drive                    | ✔        | ✅               |
+| gpt-4o      | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
+| gpt-4o      | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+ 
 
- | Model        | Prompt# | Few-shot | Resolve success |
-|--------------|---------|----------|--------------|
-| qwen-3b:Q8_0 | 1       | -        | ❌            |
-| qwen-3b:Q8_0 | 2       | -        | ✅            |
-| qwen-3b:Q8_0 | 3       | -        | ❌            |
-| qwen-3b:Q8_0 | 4       | -        | ❌            |
-| qwen-3b:Q8_0 | 1       | ✔        | ✅            |
-| qwen-3b:Q8_0 | 2       | ✔        | ✅            |
-| qwen-3b:Q8_0 | 3       | ✔        | ✅            |
-| qwen-3b:Q8_0 | 4       | ✔        | ✅            |
-| qwen-3b:Q8_0 | 5       | ✔        | ❌            |
+| Model   | Prompt Id  | Prompt (short)                         | Few-shot | Resolve success |
+|---------|------------|----------------------------------------|----------|-----------------|
+| gpt-5-mini | 0          | No boxing                              | -        | ✅               |
+| gpt-5-mini | 1          | Box + pass-through → `deep_check`      | -        | ✅               |
+| gpt-5-mini | 2          | Box + route → Drive                    | -        | ❌               |
+| gpt-5-mini | 3          | Box + slice tail detail (no full read) | -        | ✅               |
+| gpt-5-mini | 4          | Box + `deep_check` + save both outputs | -        | ✅               |
+| gpt-5-mini | 0          | No boxing                              | ✔        | ✅               |
+| gpt-5-mini | 1          | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| gpt-5-mini | 2          | Box + route → Drive                    | ✔        | ✅               |
+| gpt-5-mini | 3          | Box + slice tail detail (no full read) | ✔        | ✅               |
+| gpt-5-mini | 4          | Box + `deep_check` + save both outputs | ✔        | ✅               |
+
+
+| Model   | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|---------|-----------|----------------------------------------|----------|-----------------|
+| gpt-5.2 | 0         | No boxing                              | -        | ✅               |
+| gpt-5.2 | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
+| gpt-5.2 | 2         | Box + route → Drive                    | -        | ✅               |
+| gpt-5.2 | 3         | Box + slice tail detail (no full read) | -        | ✅               |
+| gpt-5.2 | 4         | Box + `deep_check` + save both outputs | -        | ✅               |
+| gpt-5.2 | 0         | No boxing                              | ✔        | ✅               |
+| gpt-5.2 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| gpt-5.2 | 2         | Box + route → Drive                    | ✔        | ✅               |
+| gpt-5.2 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
+| gpt-5.2 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+
+### Qwen 3 model
+
+ | Model        | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|--------------|-----------|----------------------------------------|----------|-----------------|
+| qwen-3b:Q8_0 | 0         | No boxing                              | -        | ✅               |
+| qwen-3b:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ❌               |
+| qwen-3b:Q8_0 | 2         | Box + route → Drive                    | -        | ✅               |
+| qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ❌               |
+| qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
+| qwen-3b:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
+| qwen-3b:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| qwen-3b:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
+| qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
+| qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+
+
+### Bielik v3 model
+
+
+ | Model              | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|--------------------|-----------|----------------------------------------|----------|-----------------|
+| Bielik-11b-v3:Q8_0 | 0         | No boxing                              | -        | ✅               |
+| Bielik-11b-v3:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
+| Bielik-11b-v3:Q8_0 | 2         | Box + route → Drive                    | -        | ✅               |
+| Bielik-11b-v3:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ❌               |
+| Bielik-11b-v3:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ✅               |
+| Bielik-11b-v3:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
+| Bielik-11b-v3:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| Bielik-11b-v3:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
+| Bielik-11b-v3:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
+| Bielik-11b-v3:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+
+## Conclusion (based on test results)
+
+Based on the tables above (limited experiments):
+
+- Flagship models like `gpt-4o` and `gpt-5.2` were reliable even without few-shot examples, so a strong “training-style” system prompt may not be strictly required for them in practice.
+- Weaker/smaller models (especially `*-mini` and `qwen-3b`) were noticeably less consistent without extra guidance; for these, few-shot examples improved reliability across all models, especially for the weaker ones.
+- Overall, the Tool Context Relay pattern worked well across all tested models when few-shot examples were provided, demonstrating its effectiveness in managing long tool outputs without overwhelming the model's context. 
+- Few-shot examples likely won’t be necessary for weaker models after fine-tuning on similar tasks, but that’s outside the scope of this demo.
 
 ---
 
@@ -196,12 +259,23 @@ I tested Tool Context Relay with following models
 
 ### Setup
 
-Requires an API key in the environment. Recommended variables:
+Requires **Python 3.14+**.
+
+Requires an API key in the environment (a local `.env` file is also supported and will be loaded automatically). Recommended variables:
 
 - OpenAI (default): `OPENAI_API_KEY`
 - OpenAI-compatible (`--endpoint ...` / `OPENAI_BASE_URL`): `OPENAI_COMPAT_API_KEY`
 
 When using an OpenAI-compatible endpoint, `OPENAI_COMPAT_API_KEY` is mapped to `OPENAI_API_KEY` internally for the SDKs.
+
+OpenAI-compatible quickstart (example endpoint shown below uses `127.0.0.1:1234`):
+
+```sh
+export OPENAI_COMPAT_API_KEY="..."
+export OPENAI_BASE_URL="http://127.0.0.1:1234/v1"
+
+tool-context-relay --provider openai-compat "Generate a transcript of the YouTube video with video_id='123' and then pass it to Deep Check for analysis."
+```
 
 Install dependencies (needs network access):
 
@@ -213,7 +287,7 @@ This project is configured as a uv package, so `uv sync` also installs the CLI a
 
 Run once with a prompt:
 
-`tool-context-relay "Generate transcript of YT video with video_id='123' and then pass it for deep analysis."`
+`tool-context-relay "Generate a transcript of the YouTube video with video_id='123' and then pass it to Deep Check for analysis."`
 
 Run from a prompt-case file (Markdown). If the file starts with YAML frontmatter, the CLI validates tool-call behavior
 against that metadata; if there is no frontmatter, it just executes the prompt:
@@ -224,7 +298,7 @@ Run multiple files via a wildcard pattern:
 
 `tool-context-relay --glob "prompt_cases/*.md"`
 
-Dump final context as JSON to stderr:
+Dump final context as JSON to stdout:
 
 `tool-context-relay "..." --dump-context`
 
@@ -238,7 +312,7 @@ Hide the agent system instruction output (it is shown by default):
 
 Use a non-default OpenAI-compatible endpoint:
 
-`tool-context-relay --provider openai-compat --endpoint http://localhost:11434/v1 "..."`
+`tool-context-relay --provider openai-compat --endpoint http://127.0.0.1:1234/v1 "..."`
 
 If you omit `--provider`, the default is `--provider auto` which chooses `openai-compat` when an endpoint override is present.
 
@@ -270,16 +344,6 @@ Run without syncing or activating a local venv:
 - Unit tests + compile checks: `make ci`
 - Integration tests (require API key + reachable endpoint): `make integration`
 
-You can also filter integration scenarios:
+### Notes
 
-- Providers: `uv run pytest -m integration -v tests/integration/ --provider openai`
-- Models: `uv run pytest -m integration -v tests/integration/ --model gpt-4.1-mini`
-- Prompt cases: `uv run pytest -m integration -v tests/integration/ --prompt-case case1`
-
-`--model` overrides the configured model list (env defaults). Use `--model all` to disable the override and use defaults.
-
-### Codex MCP (project-scoped)
-
-This repo includes a project-local Codex config at `.codex/config.toml` that points to a local MCP server:
-
-- `http://127.0.0.1:64342/sse`
+`tool-context-relay` loads environment variables from a local `.env` file (if present) via `python-dotenv`.
