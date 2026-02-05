@@ -9,4 +9,4 @@ forbidden_tools:
   - deep_check
 expect_internal_resolve: false
 ---
-Generate transcript of YT video with video_id='123' and save it to a file at google drive named 'transcript.txt'.
+Generate a transcript of the YouTube video with video_id='123' and save it to a file on Google Drive named 'transcript.txt'.

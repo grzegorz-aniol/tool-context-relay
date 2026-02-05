@@ -9,4 +9,4 @@ forbidden_tools:
   - google_drive_write_file
 expect_internal_resolve: false
 ---
-Generate transcript of YT video with video_id='123' and then pass it to deep check analysis.
+Generate a transcript of the YouTube video with video_id='123' and then pass it to Deep Check for analysis.

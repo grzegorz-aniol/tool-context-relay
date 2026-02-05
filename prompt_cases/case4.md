@@ -10,5 +10,5 @@ tool_calls:
   - tool_name: google_drive_write_file
 expect_internal_resolve: false
 ---
-Generate transcript of YT video with video_id='123' and then pass it to deep check analysis.
-Then, save both the transcript and the analysis to files at google drive named 'transcript.txt' and 'analysis.txt' respectively.
+Generate a transcript of the YouTube video with video_id='123' and then pass it to Deep Check for analysis.
+Then save both the transcript and the analysis to files on Google Drive named 'transcript.txt' and 'analysis.txt', respectively.
