@@ -5,7 +5,7 @@ from tool_context_relay.agent.pretty import emit_default
 
 def fun_write_file_to_google_drive(file_content: str, file_name: str) -> str:
     """
-    Writing a file to Google Drive.
+    Write a file to Google Drive.
 
     Args:
         file_content (str): The content of the file to write.
