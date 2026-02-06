@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -10,6 +9,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from tool_context_relay.main import run_once
+from tool_context_relay.openai_env import load_profile
 from tool_context_relay.tools.tool_relay import is_resource_id
 
 from tool_context_relay.testing.integration_hooks import (
@@ -31,38 +31,18 @@ INTERNAL_RESOLVE_TOOLS = (
     "internal_resource_length",
 )
 
-OPENAI_COMPAT_URL = "http://127.0.0.1:1234/v1"
 
-
-def _configure_provider_env(monkeypatch: pytest.MonkeyPatch, provider: str) -> None:
-    # Integration tests are expected to run with project-local `.env` and should not
-    # require manual `export ...` in the shell.
+def _configure_profile_env(monkeypatch: pytest.MonkeyPatch, profile: str) -> None:
     load_dotenv(verbose=True)
 
-    if provider == "openai":
-        if not os.environ.get("OPENAI_API_KEY", "").strip():
-            pytest.fail(
-                "OPENAI_API_KEY is missing/empty, but integration tests were requested. "
-                "Set OPENAI_API_KEY to run the OpenAI integration cases."
-            )
+    if profile == "openai":
         monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
         monkeypatch.delenv("OPENAI_API_BASE", raising=False)
-        return
 
-    if provider == "openai-compat":
-        if not os.environ.get("OPENAI_COMPAT_API_KEY", "").strip() and not os.environ.get(
-            "OPENAI_API_KEY", ""
-        ).strip():
-            pytest.fail(
-                "OPENAI_COMPAT_API_KEY (or OPENAI_API_KEY) is missing/empty, but integration tests were requested. "
-                "Set OPENAI_COMPAT_API_KEY for the OpenAI-compatible integration cases."
-            )
-
-        monkeypatch.setenv("OPENAI_BASE_URL", OPENAI_COMPAT_URL)
-        monkeypatch.setenv("OPENAI_API_BASE", OPENAI_COMPAT_URL)
-        return
-
-    raise ValueError(f"unknown provider: {provider!r}")
+    try:
+        load_profile(profile)
+    except Exception as exc:
+        pytest.fail(f"profile '{profile}' is not configured properly: {exc}")
 
 
 def _assert_no_unnecessary_resolves(calls) -> None:
@@ -124,7 +104,7 @@ def _assert_tool_calls_expectations(calls, expectations: list[ToolCallExpectatio
 
 def test_scenarios_integration(
     monkeypatch: pytest.MonkeyPatch,
-    provider: str,
+    profile: str,
     model: str,
     case_id: str,
     prompt: str,
@@ -132,10 +112,10 @@ def test_scenarios_integration(
     tool_calls: list[ToolCallExpectation],
     expect_internal_resolve: bool,
 ) -> None:
-    _configure_provider_env(monkeypatch, provider)
+    _configure_profile_env(monkeypatch, profile)
 
     hooks = CaptureToolCalls()
-    run_once(prompt=prompt, model=model, initial_kv={}, provider=provider, hooks=hooks)
+    run_once(prompt=prompt, model=model, initial_kv={}, profile=profile, hooks=hooks)
 
     calls = hooks.tool_calls
 

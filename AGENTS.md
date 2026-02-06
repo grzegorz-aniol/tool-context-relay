@@ -25,6 +25,10 @@ Always follow this pattern:
 
 Never make modifications without a permission that are out of the plan and scope of the task!
 
+## Code and architecture
+
+This is experimental project - not production - you can do shortcuts to avoid complex code.
+
 ## Environment notes (Codex CLI)
 
 * `uv run ...` and `make ci` may need access to uv’s global cache under `~/.cache/uv`.

@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import os
-from typing import Literal
+import re
+from dataclasses import dataclass
+from typing import Sequence
 
 
-OPENAI_COMPAT_PROVIDER_KEY_ENV = "OPENAI_COMPAT_API_KEY"
-
-Provider = Literal["auto", "openai", "openai-compat"]
-ResolvedProvider = Literal["openai", "openai-compat"]
+_BASE_URL_KEYS = ("BASE_URL", "BASEURL", "API_BASE", "ENDPOINT")
+_API_KEY_SUFFIXES = ("API_KEY", "COMPAT_API_KEY")
 
 
 def _getenv_stripped(name: str) -> str | None:
@@ -16,34 +18,76 @@ def _getenv_stripped(name: str) -> str | None:
     return stripped or None
 
 
-def using_openai_compatible_endpoint() -> bool:
-    """Return True when talking to a non-default OpenAI-compatible base URL.
-
-    The OpenAI Python SDK and Agents SDK commonly use OPENAI_BASE_URL (and/or
-    OPENAI_API_BASE) to override the default endpoint.
-    """
-    return _getenv_stripped("OPENAI_BASE_URL") is not None or _getenv_stripped("OPENAI_API_BASE") is not None
-
-
-def resolve_provider(provider: Provider) -> ResolvedProvider:
-    if provider == "auto":
-        return "openai-compat" if using_openai_compatible_endpoint() else "openai"
-    return provider
+def _first_env_value(prefix: str, keys: Sequence[str]) -> str | None:
+    for key in keys:
+        value = _getenv_stripped(f"{prefix}_{key}")
+        if value is not None:
+            return value
+    return None
 
 
-def apply_api_key_override(*, provider: Provider) -> None:
-    """Map tool-specific provider env vars to OPENAI_API_KEY for the SDKs.
+def _normalize_profile_name(value: str) -> str:
+    value = value.strip()
+    if not value:
+        raise ValueError("profile name must not be empty")
+    normalized = re.sub(r"[^A-Za-z0-9]+", "_", value).strip("_")
+    if not normalized:
+        raise ValueError("profile name must contain letters or digits")
+    return normalized.upper()
 
-    Rules:
-    - Provider 'openai': rely on OPENAI_API_KEY (do not remap).
-    - Provider 'openai-compat': read OPENAI_COMPAT_API_KEY and map
-      it to OPENAI_API_KEY for this process.
-    """
-    if resolve_provider(provider) != "openai-compat":
-        return
 
-    token = _getenv_stripped(OPENAI_COMPAT_PROVIDER_KEY_ENV)
-    if token is None:
-        return
+def _normalize_provider(value: str | None, endpoint_present: bool) -> str:
+    if value is None:
+        return "openai-compat" if endpoint_present else "openai"
+    return value.strip().lower()
 
-    os.environ["OPENAI_API_KEY"] = token
+
+def _provider_requires_endpoint(provider: str) -> bool:
+    return provider != "openai"
+
+
+@dataclass(frozen=True)
+class ProfileConfig:
+    name: str
+    prefix: str
+    provider: str
+    endpoint: str | None
+    api_key: str | None
+    default_model: str | None
+
+
+def load_profile(profile: str) -> ProfileConfig:
+    """Load profile configuration values from environment variables."""
+    normalized = _normalize_profile_name(profile)
+    endpoint = _first_env_value(normalized, _BASE_URL_KEYS)
+    provider_value = _getenv_stripped(f"{normalized}_PROVIDER")
+    provider = _normalize_provider(provider_value, endpoint_present=endpoint is not None)
+    if _provider_requires_endpoint(provider) and endpoint is None:
+        raise RuntimeError(
+            f"profile '{profile}' selects provider '{provider}' but does not set any "
+            f"{normalized}_BASE_URL / {normalized}_BASEURL / {normalized}_API_BASE / {normalized}_ENDPOINT"
+        )
+
+    api_key = _first_env_value(normalized, _API_KEY_SUFFIXES)
+    if provider == "openai-compat" and api_key is None and normalized == "OPENAI":
+        api_key = _getenv_stripped("OPENAI_COMPAT_API_KEY")
+
+    default_model = _getenv_stripped(f"{normalized}_MODEL")
+
+    return ProfileConfig(
+        name=profile,
+        prefix=normalized,
+        provider=provider,
+        endpoint=endpoint,
+        api_key=api_key,
+        default_model=default_model,
+    )
+
+
+def apply_profile(profile: ProfileConfig) -> None:
+    """Apply profile-derived values to the legacy OpenAI env vars."""
+    if profile.api_key is not None:
+        os.environ["OPENAI_API_KEY"] = profile.api_key
+    if profile.endpoint is not None:
+        os.environ["OPENAI_BASE_URL"] = profile.endpoint
+        os.environ["OPENAI_API_BASE"] = profile.endpoint

@@ -28,7 +28,7 @@ Tool Context Relay solves this by introducing two steps at the client boundary:
 This works **automatically**:
 
 - If a tool result is **below a configured size threshold**, the client returns the normal value to the LLM (no boxing).
-- If a tool result is **above the threshold**, the client activates the opaque-reference mechanism and returns `internal://...` instead.
+- If a tool result is **above the threshold**, the client activates the opaque-reference mechanism and returns an opaque reference (default `internal://...`).
 
 Most importantly: **the client fully owns boxing/unboxing**. Real tools always receive and return real
 values and do not need to know that opaque references exist. The only tools that deal with opaque references directly are the
@@ -36,6 +36,9 @@ values and do not need to know that opaque references exist. The only tools that
 
 This repo is a minimal CLI demo of that idea using a few simulated tools (transcribe YouTube, deep-check text, write to Google Drive)
 and prompt-case files that assert the expected pass-through behavior.
+
+> The idea and its usage recommendations are also described in the companion article on my blog: https://appga.pl/
+
 
 ## Opaque resource ID (what it is)
 
@@ -53,6 +56,16 @@ Properties:
 If the model truly needs the underlying content, the client can expose narrow “resolve” tools (e.g. length, slice, full read)
 so the model can inspect just what’s needed rather than pulling the entire payload into context.
 
+## Boxing strategies
+
+Two boxing formats are supported:
+
+- **Opaque (default):** tools return a plain `internal://<id>` string for large outputs.
+- **JSON:** tools return a JSON string with a strict schema: `{"type":"resource_link","uri":"internal://<id>"}`.
+
+You can choose the strategy via the CLI: `--boxing opaque` (default) or `--boxing json`.
+The agent instructions/examples and internal resolve-tool descriptions are defined in code, keyed by boxing mode.
+
 ## Why this is useful
 
 - **Stops context bloat** from large tool outputs (transcripts, web pages, big files, logs).
@@ -68,7 +81,7 @@ so the model can inspect just what’s needed rather than pulling the entire pay
 ## Examples (from prompt cases)
 
 All prompts below come directly from `prompt_cases/`.
-The important part is that long data moves between tools as an opaque `internal://...` reference.
+The important part is that long data moves between tools as an opaque reference (default `internal://...`).
 
 Prompt cases are Markdown files with YAML frontmatter. The frontmatter drives integration assertions:
 
@@ -214,6 +227,8 @@ I tested Tool Context Relay with following models
 
 ### Qwen 3 model
 
+#### Boxing method: opaque ID (default)
+
  | Model        | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
 |--------------|-----------|----------------------------------------|----------|-----------------|
 | qwen-3b:Q8_0 | 0         | No boxing                              | -        | ✅               |
@@ -227,6 +242,20 @@ I tested Tool Context Relay with following models
 | qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
 | qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
 
+#### Boxing method: JSON
+
+ | Model        | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|--------------|-----------|----------------------------------------|----------|-----------------|
+| qwen-3b:Q8_0 | 0         | No boxing                              | -        | ✅               |
+| qwen-3b:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ❌               |
+| qwen-3b:Q8_0 | 2         | Box + route → Drive                    | -        | ❌               |
+| qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ✅               |
+| qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
+| qwen-3b:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
+| qwen-3b:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| qwen-3b:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
+| qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ❌               |
+| qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
 
 ### Bielik v3 model
 
@@ -261,21 +290,35 @@ Based on the tables above (limited experiments):
 
 Requires **Python 3.14+**.
 
-Requires an API key in the environment (a local `.env` file is also supported and will be loaded automatically). Recommended variables:
+`tool-context-relay` discovers credentials via **profiles**. Each profile is identified by a case-insensitive name
+and looks for env vars that share that name as a prefix (e.g. prefix `OPENAI` looks for `OPENAI_API_KEY`, `OPENAI_MODEL`,
+`OPENAI_BASE_URL`, `OPENAI_PROVIDER`, etc.). The CLI defaults to profile `openai` unless you pass `--profile` or set
+`TOOL_CONTEXT_RELAY_PROFILE`. In practice you can wire up multiple profiles in a single `.env` file and switch between them.
 
-- OpenAI (default): `OPENAI_API_KEY`
-- OpenAI-compatible (`--endpoint ...` / `OPENAI_BASE_URL`): `OPENAI_COMPAT_API_KEY`
-
-When using an OpenAI-compatible endpoint, `OPENAI_COMPAT_API_KEY` is mapped to `OPENAI_API_KEY` internally for the SDKs.
-
-OpenAI-compatible quickstart (example endpoint shown below uses `127.0.0.1:1234`):
+`.env.example` lists the placeholders you can fill for the built-in profiles (openai, bielik, qwen). A minimal setup may look like:
 
 ```sh
-export OPENAI_COMPAT_API_KEY="..."
-export OPENAI_BASE_URL="http://127.0.0.1:1234/v1"
+OPENAI_API_KEY="sk-your-openai-key"
+OPENAI_MODEL="gpt-4.1-mini"
 
-tool-context-relay --provider openai-compat "Generate a transcript of the YouTube video with video_id='123' and then pass it to Deep Check for analysis."
+BIELIK_PROVIDER="openai-compat"
+BIELIK_API_KEY="sk-your-bielik-key"
+BIELIK_BASE_URL="http://127.0.0.1:1234/v1"
+BIELIK_MODEL="speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q8_0.gguf"
+
+QWEN_PROVIDER="openai-compat"
+QWEN_API_KEY="sk-your-qwen-key"
+QWEN_BASE_URL="http://127.0.0.1:1234/v1"
+QWEN_MODEL="Qwen/Qwen3-8B-GGUF:Q8_0"
 ```
+
+When a profile does not specify `*_PROVIDER`, a base URL automatically switches the provider to `openai-compat`.
+If you rely on `*_COMPAT_API_KEY` instead of `*_API_KEY` (e.g. for backwards compatibility), the CLI will honor that
+as long as the prefix matches (e.g. `OPENAI_COMPAT_API_KEY` for the `openai` profile).
+
+Install dependencies (needs network access):
+
+`uv sync`
 
 Install dependencies (needs network access):
 
@@ -310,15 +353,23 @@ Hide the agent system instruction output (it is shown by default):
 
 `tool-context-relay --no-show-system-instruction "..."`
 
-Use a non-default OpenAI-compatible endpoint:
+Use a specific profile (and its env vars):
 
-`tool-context-relay --provider openai-compat --endpoint http://127.0.0.1:1234/v1 "..."`
+`tool-context-relay --profile bielik --model BIELIK "Generate ..."`
 
-If you omit `--provider`, the default is `--provider auto` which chooses `openai-compat` when an endpoint override is present.
+Set `TOOL_CONTEXT_RELAY_PROFILE=bielik` to make a profile the default for your shell/session.
+
+`--model` remains available to override the profile’s default model; omit it to rely on the profile default (or the fallback `gpt-4.1-mini`).
 
 Set sampling temperature (non-reasoning models only):
 
 `tool-context-relay --temperature 0.1 "..."` (ignored for reasoning models like `gpt-5*`)
+
+Select boxing strategy for large tool outputs:
+
+`tool-context-relay --boxing opaque "..."` (default)
+
+`tool-context-relay --boxing json "..."` (returns JSON string `{"type":"resource_link","uri":"internal://<id>"}`)
 
 ### Color output
 

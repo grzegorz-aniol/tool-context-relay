@@ -10,8 +10,10 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any
 
+from dotenv import load_dotenv
+
 from tool_context_relay.pretty import emit_info, emit_error
-from tool_context_relay.openai_env import resolve_provider
+from tool_context_relay.openai_env import ProfileConfig, load_profile
 from tool_context_relay.testing.prompt_cases import (
     PromptCase,
     expand_wildcard_pattern,
@@ -22,6 +24,7 @@ from tool_context_relay.testing.integration_hooks import (
     CapturedToolCall,
     assert_tool_not_called,
 )
+from tool_context_relay.boxing import BoxingMode
 from tool_context_relay.tools.tool_relay import is_resource_id
 
 
@@ -32,9 +35,6 @@ class FileRunResult:
     status: str
     reasons: list[str]
 
-
-def _has_env_endpoint_override() -> bool:
-    return bool(os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE"))
 
 
 def _parse_kv(pairs: list[str]) -> dict[str, str]:
@@ -61,24 +61,33 @@ def _normalize_model_for_agents(*, model: str) -> str:
     return model
 
 
+def _resolve_profile_name(requested: str | None) -> str:
+    requested_value = (requested or "").strip()
+    if requested_value:
+        return requested_value
+    env_value = (os.environ.get("TOOL_CONTEXT_RELAY_PROFILE") or "").strip()
+    if env_value:
+        return env_value
+    return "openai"
+
+
 def _format_startup_config_line(
     *,
-    provider_requested: str,
-    provider_resolved: str,
-    model_requested: str,
+    profile: str,
+    provider: str,
+    model_requested: str | None,
     model_effective: str,
     endpoint: str | None,
     temperature: float | None,
+    boxing_mode: BoxingMode,
 ) -> str:
     parts: list[str] = ["Config used:"]
 
-    if provider_requested != provider_resolved:
-        parts.append(f"* provider={provider_resolved} (requested={provider_requested})")
-    else:
-        parts.append(f"* provider={provider_resolved}")
+    parts.append(f"* profile={profile}")
+    parts.append(f"* provider={provider}")
 
-    if model_requested != model_effective:
-        parts.append(f"* model={model_effective} (from={model_requested})")
+    if model_requested and model_requested != model_effective:
+        parts.append(f"* model={model_effective} (requested={model_requested})")
     else:
         parts.append(f"* model={model_effective}")
 
@@ -87,6 +96,7 @@ def _format_startup_config_line(
 
     if temperature is not None:
         parts.append(f"* temperature={temperature}")
+    parts.append(f"* boxing={boxing_mode}")
 
     return "\n".join(parts)
 
@@ -208,12 +218,14 @@ def _run_single_prompt(
     *,
     prompt: str,
     model: str,
-    provider: str,
+    profile: str,
+    profile_config: ProfileConfig,
     initial_kv: dict[str, str],
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
     temperature: float | None,
+    boxing_mode: BoxingMode,
     capture_calls: bool = False,
 ) -> tuple[str, Any, CaptureToolCalls | None]:
     """Run a single prompt and optionally capture tool calls.
@@ -232,10 +244,12 @@ def _run_single_prompt(
         prompt=prompt,
         model=model,
         initial_kv=initial_kv,
-        provider=provider,
+        profile=profile,
+        profile_config=profile_config,
         print_tools=print_tools,
         fewshots=fewshots,
         temperature=temperature,
+        boxing_mode=boxing_mode,
         hooks=hooks,
     )
 
@@ -300,11 +314,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default="gpt-4.1-mini",
+        default=None,
         help=(
-            "Model name (default: %(default)s). "
-            "If you pass an Agents-style prefix like 'openai/<model>', it will be stripped "
-            "before sending the request."
+            "Model name (optional). "
+            "If omitted, the profile's default model (or gpt-4.1-mini) is used. "
+            "Agents-style prefixes like 'openai/<model>' are stripped."
         ),
     )
     parser.add_argument(
@@ -319,21 +333,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--provider",
-        default="auto",
-        choices=["auto", "openai", "openai-compat"],
-        help=(
-            "Which API provider to use for auth/env mapping (default: %(default)s). "
-            "'openai-compat' requires --endpoint or OPENAI_BASE_URL/OPENAI_API_BASE."
-        ),
+        "--boxing",
+        default="opaque",
+        choices=["opaque", "json"],
+        help="Boxing strategy for large tool outputs (default: %(default)s).",
     )
     parser.add_argument(
-        "--endpoint",
+        "--profile",
         default=None,
-        metavar="URL",
         help=(
-            "OpenAI-compatible API base URL (e.g. http://localhost:11434/v1). "
-            "Overrides OPENAI_BASE_URL / OPENAI_API_BASE for this run."
+            "Profile name (default from TOOL_CONTEXT_RELAY_PROFILE or 'openai'). "
+            "Profiles map to <PREFIX>_API_KEY, <PREFIX>_MODEL, and so on."
         ),
     )
     parser.add_argument(
@@ -375,32 +385,10 @@ def _is_reasoning_model(*, model: str) -> bool:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
+    load_dotenv(verbose=True)
+
     # Propagate to the pretty emitter, and transitively to tool hooks.
     os.environ["TOOL_CONTEXT_RELAY_COLOR"] = args.color
-
-    provider = args.provider
-
-    if args.endpoint is not None:
-        endpoint = args.endpoint.strip()
-        if not endpoint:
-            print("Endpoint must not be empty.", file=sys.stderr)
-            return 2
-        os.environ["OPENAI_BASE_URL"] = endpoint
-        os.environ["OPENAI_API_BASE"] = endpoint
-
-    has_endpoint_override = _has_env_endpoint_override()
-    if provider == "openai-compat" and not has_endpoint_override:
-        print(
-            "Provider 'openai-compat' requires an endpoint override via --endpoint or OPENAI_BASE_URL/OPENAI_API_BASE.",
-            file=sys.stderr,
-        )
-        return 2
-    if provider == "openai" and has_endpoint_override:
-        print(
-            "Provider 'openai' cannot be used with an endpoint override (--endpoint / OPENAI_BASE_URL / OPENAI_API_BASE).",
-            file=sys.stderr,
-        )
-        return 2
 
     try:
         initial_kv = _parse_kv(args.set)
@@ -420,7 +408,24 @@ def main(argv: list[str] | None = None) -> int:
         print("Prompt must not be empty.", file=sys.stderr)
         return 2
 
+    profile = _resolve_profile_name(args.profile)
+    try:
+        profile_config = load_profile(profile)
+    except (ValueError, RuntimeError) as e:
+        print(f"Invalid profile '{profile}': {e}", file=sys.stderr)
+        return 2
+
+    if profile_config.api_key is None:
+        print(
+            f"Profile '{profile}' must set {profile_config.prefix}_API_KEY (or another matching key).",
+            file=sys.stderr,
+        )
+        return 2
+
+    model_requested: str | None = (args.model or "").strip() or None
+    model_source = model_requested or profile_config.default_model or "gpt-4.1-mini"
     temperature: float | None = args.temperature
+    model = _normalize_model_for_agents(model=model_source)
     if temperature is not None:
         if not math.isfinite(temperature):
             print("Temperature must be a finite number.", file=sys.stderr)
@@ -429,24 +434,20 @@ def main(argv: list[str] | None = None) -> int:
             print("Temperature must be between 0.0 and 2.0.", file=sys.stderr)
             return 2
 
-    model = _normalize_model_for_agents(model=args.model)
     if temperature is not None and _is_reasoning_model(model=model):
         emit_info(
             f"Ignoring --temperature={temperature} because model '{model}' looks like a reasoning model.",
             stream=sys.stdout,
         )
         temperature = None
-    endpoint_to_print = None
-    if has_endpoint_override:
-        endpoint_to_print = (os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENAI_API_BASE") or "").strip() or None
-
     config_line = _format_startup_config_line(
-        provider_requested=provider,
-        provider_resolved=resolve_provider(provider),
-        model_requested=args.model,
+        profile=profile,
+        provider=profile_config.provider,
+        model_requested=model_requested,
         model_effective=model,
-        endpoint=endpoint_to_print,
+        endpoint=profile_config.endpoint,
         temperature=temperature,
+        boxing_mode=args.boxing,
     )
     emit_info(config_line, stream=sys.stdout)
 
@@ -477,12 +478,14 @@ def main(argv: list[str] | None = None) -> int:
             return _run_from_files(
                 files=files,
                 model=model,
-                provider=provider,
+                profile=profile,
+                profile_config=profile_config,
                 initial_kv=initial_kv,
                 print_tools=args.print_tools,
                 fewshots=args.fewshots,
                 show_system_instruction=args.show_system_instruction,
                 temperature=temperature,
+                boxing_mode=args.boxing,
                 dump_context=args.dump_context,
             )
         else:
@@ -490,12 +493,14 @@ def main(argv: list[str] | None = None) -> int:
             return _run_literal_prompt(
                 prompt=prompt_arg,
                 model=model,
-                provider=provider,
+                profile=profile,
+                profile_config=profile_config,
                 initial_kv=initial_kv,
                 print_tools=args.print_tools,
                 fewshots=args.fewshots,
                 show_system_instruction=args.show_system_instruction,
                 temperature=temperature,
+                boxing_mode=args.boxing,
                 dump_context=args.dump_context,
             )
     except ModuleNotFoundError as e:
@@ -512,12 +517,14 @@ def _run_literal_prompt(
     *,
     prompt: str,
     model: str,
-    provider: str,
+    profile: str,
+    profile_config: ProfileConfig,
     initial_kv: dict[str, str],
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
     temperature: float | None,
+    boxing_mode: BoxingMode,
     dump_context: bool,
 ) -> int:
     """Run a literal prompt (no validation)."""
@@ -529,10 +536,12 @@ def _run_literal_prompt(
         prompt=prompt,
         model=model,
         initial_kv=initial_kv,
-        provider=provider,
+        profile=profile,
+        profile_config=profile_config,
         print_tools=print_tools,
         fewshots=fewshots,
         temperature=temperature,
+        boxing_mode=boxing_mode,
         hooks=hooks,
     )
 
@@ -555,12 +564,14 @@ def _run_from_files(
     *,
     files: list[Path],
     model: str,
-    provider: str,
+    profile: str,
+    profile_config: ProfileConfig,
     initial_kv: dict[str, str],
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
     temperature: float | None,
+    boxing_mode: BoxingMode,
     dump_context: bool,
 ) -> int:
     """Run prompts from one or more files.
@@ -598,15 +609,17 @@ def _run_from_files(
         hooks = CaptureToolCalls(delegate=RunHookHandler(show_system_instruction=show_system_instruction))
         try:
             output, context = run_once(
-                prompt=prompt,
-                model=model,
-                initial_kv=initial_kv,
-                provider=provider,
-                print_tools=print_tools,
-                fewshots=fewshots,
-                temperature=temperature,
-                hooks=hooks,
-            )
+            prompt=prompt,
+            model=model,
+            initial_kv=initial_kv,
+            profile=profile,
+            profile_config=profile_config,
+            print_tools=print_tools,
+            fewshots=fewshots,
+            temperature=temperature,
+            boxing_mode=boxing_mode,
+            hooks=hooks,
+        )
         except Exception as e:
             emit_error(f"Error running {file_path}: {e}", stream=sys.stderr)
             all_passed = False

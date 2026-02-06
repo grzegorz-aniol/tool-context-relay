@@ -1,16 +1,13 @@
 from pathlib import Path
 
-from tool_context_relay.testing.integration_matrix import (
-    DEFAULT_OPENAI_COMPAT_MODEL,
-    build_integration_matrix,
-)
+from tool_context_relay.testing.integration_matrix import build_integration_matrix
 
 
 def _write_case(path: Path, *, frontmatter: str, body: str) -> None:
     path.write_text(f"---\n{frontmatter}\n---\n{body}\n", encoding="utf-8")
 
 
-def test_build_integration_matrix_model_override_for_openai_compat(tmp_path: Path) -> None:
+def test_build_integration_matrix_model_override_for_profile(tmp_path: Path) -> None:
     cases_dir = tmp_path / "prompt_cases"
     cases_dir.mkdir()
 
@@ -28,19 +25,19 @@ expect_internal_resolve: false
 
     params, ids = build_integration_matrix(
         cases_dir=cases_dir,
-        provider_option="openai-compat",
+        profile_option="openai",
         model_options=["Qwen/Qwen3-8B-GGUF:Q8_0"],
         prompt_case_options=[],
         env={},
     )
 
     assert len(params) == 1
-    (provider, model, case_id, prompt, forbidden_tools, tool_calls, expect_internal_resolve) = params[0]
-    assert provider == "openai-compat"
+    (profile, model, case_id, prompt, forbidden_tools, tool_calls, expect_internal_resolve) = params[0]
+    assert profile == "openai"
     assert model == "Qwen/Qwen3-8B-GGUF:Q8_0"
     assert case_id == "case1"
     assert prompt == "hello"
-    assert ids == ["openai-compat-Qwen/Qwen3-8B-GGUF:Q8_0-case1"]
+    assert ids == ["openai-Qwen/Qwen3-8B-GGUF:Q8_0-case1"]
 
 
 def test_build_integration_matrix_model_all_disables_override(tmp_path: Path) -> None:
@@ -50,13 +47,13 @@ def test_build_integration_matrix_model_all_disables_override(tmp_path: Path) ->
 
     params, _ids = build_integration_matrix(
         cases_dir=cases_dir,
-        provider_option="openai-compat",
+        profile_option="openai",
         model_options=["all"],
         prompt_case_options=[],
         env={},
     )
 
-    assert params[0][1] == DEFAULT_OPENAI_COMPAT_MODEL
+    assert params[0][1] == "gpt-4.1-mini"
 
 
 def test_build_integration_matrix_prompt_case_filter(tmp_path: Path) -> None:
@@ -67,7 +64,7 @@ def test_build_integration_matrix_prompt_case_filter(tmp_path: Path) -> None:
 
     params, _ids = build_integration_matrix(
         cases_dir=cases_dir,
-        provider_option="openai-compat",
+        profile_option="openai",
         model_options=["X"],
         prompt_case_options=["2"],
         env={},
@@ -75,4 +72,3 @@ def test_build_integration_matrix_prompt_case_filter(tmp_path: Path) -> None:
 
     assert len(params) == 1
     assert params[0][2] == "case2"
-

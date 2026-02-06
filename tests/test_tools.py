@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tool_context_relay.tools.tool_relay import tool_relay, unbox_value
+from tool_context_relay.tools.tool_relay import tool_relay, unbox_value, box_value, is_resource_id
 from tool_context_relay.tools.mcp_yt import fun_get_transcript
 
 
@@ -37,3 +37,11 @@ class ToolsTests(unittest.TestCase):
 
     def test_fun_get_transcript_returns_short_value_for_special_id(self):
         self.assertEqual(fun_get_transcript("999"), "Welcome in a new episode and good bye")
+
+    def test_box_value_json_mode_returns_resource_link_string(self):
+        value = "x" * 2048
+        boxed = box_value(value, mode="json")
+        self.assertIsInstance(boxed, str)
+        self.assertIn('"type":"resource_link"', boxed)
+        self.assertTrue(is_resource_id(boxed))
+        self.assertEqual(unbox_value(boxed), value)

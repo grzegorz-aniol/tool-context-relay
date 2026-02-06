@@ -84,3 +84,19 @@ def test_internal_resource_tools_resolve_boxed_values() -> None:
     assert internal_resource_length(None, resource_id) == str(len(value))
     assert internal_resource_read(None, resource_id) == value
     assert internal_resource_read_slice(None, resource_id, 10, 5) == value[10:15]
+
+
+def test_internal_resource_tools_accept_json_boxing() -> None:
+    from tool_context_relay.agent.agent import (
+        internal_resource_length,
+        internal_resource_read,
+        internal_resource_read_slice,
+    )
+    from tool_context_relay.tools.tool_relay import box_value
+
+    value = "x" * 2048
+    boxed = box_value(value, mode="json")
+
+    assert internal_resource_length(None, boxed) == str(len(value))
+    assert internal_resource_read(None, boxed) == value
+    assert internal_resource_read_slice(None, boxed, 10, 5) == value[10:15]

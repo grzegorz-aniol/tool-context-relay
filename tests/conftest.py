@@ -5,11 +5,11 @@ from pathlib import Path
 def pytest_addoption(parser) -> None:
     group = parser.getgroup("tool-context-relay")
     group.addoption(
-        "--provider",
+        "--profile",
         action="store",
         default="all",
-        choices=("all", "openai", "openai-compat"),
-        help="Run integration scenarios only for the selected provider.",
+        choices=("all", "openai", "bielik", "qwen"),
+        help="Run integration scenarios only for the selected profile.",
     )
     group.addoption(
         "--model",
@@ -34,13 +34,13 @@ def pytest_generate_tests(metafunc) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     prompt_cases_dir = repo_root / "prompt_cases"
 
-    selected_provider = metafunc.config.getoption("--provider")
+    selected_profile = metafunc.config.getoption("--profile")
     selected_models = metafunc.config.getoption("--model") or []
     selected_prompt_cases = metafunc.config.getoption("--prompt-case") or []
 
     params, ids = build_integration_matrix(
         cases_dir=prompt_cases_dir,
-        provider_option=selected_provider,
+        profile_option=selected_profile,
         model_options=list(selected_models),
         prompt_case_options=[str(x) for x in selected_prompt_cases],
         env=os.environ,
@@ -48,7 +48,7 @@ def pytest_generate_tests(metafunc) -> None:
 
     metafunc.parametrize(
         (
-            "provider",
+            "profile",
             "model",
             "case_id",
             "prompt",

@@ -14,8 +14,7 @@ integration:
 
 test-qwen-fewshots:
 	uv run tool-context-relay \
-		--provider openai-compat \
-		--endpoint http://127.0.0.1:1234/v1 \
+		--profile qwen \
 		--model Qwen/Qwen3-8B-GGUF:Q8_0 \
 		--no-show-system-instruction \
 		--fewshots \
@@ -23,17 +22,33 @@ test-qwen-fewshots:
 
 test-qwen-oneshot:
 	uv run tool-context-relay \
-		--provider openai-compat \
-		--endpoint http://127.0.0.1:1234/v1 \
+		--profile qwen \
 		--model Qwen/Qwen3-8B-GGUF:Q8_0 \
 		--no-show-system-instruction \
 		--no-fewshots \
 		--glob "prompt_cases/*.md"
 
-test-bielik-fewshots:
+test-json-qwen-oneshot:
 	uv run tool-context-relay \
-		--provider openai-compat \
-		--endpoint http://127.0.0.1:1234/v1 \
+		--boxing json \
+		--profile qwen \
+		--model Qwen/Qwen3-8B-GGUF:Q8_0 \
+		--show-system-instruction \
+		--no-fewshots \
+		--glob "prompt_cases/*.md"
+
+test-json-qwen-fewshots:
+	uv run tool-context-relay \
+		--boxing json \
+		--profile qwen \
+		--model Qwen/Qwen3-8B-GGUF:Q8_0 \
+		--show-system-instruction \
+		--fewshots \
+		--glob "prompt_cases/*.md"
+
+test-bielik-fewshots:
+	 uv run tool-context-relay \
+		--profile bielik \
 		--model $(BIELIK_MODEL) \
 		--temperature 0.1 \
 		--no-show-system-instruction \
@@ -41,9 +56,8 @@ test-bielik-fewshots:
 		--glob "prompt_cases/*.md"
 
 test-bielik-oneshot:
-	uv run tool-context-relay \
-		--provider openai-compat \
-		--endpoint http://127.0.0.1:1234/v1 \
+	 uv run tool-context-relay \
+		--profile bielik \
 		--model $(BIELIK_MODEL) \
 		--temperature 0.1 \
 		--no-show-system-instruction \
@@ -51,18 +65,17 @@ test-bielik-oneshot:
 		--glob "prompt_cases/*.md"
 
 test-openai-fewshots:
-	uv run tool-context-relay \
-		--provider openai \
+	 uv run tool-context-relay \
+		--profile openai \
 		--model $(OPENAI_MODEL) \
 		--no-show-system-instruction \
 		--fewshots \
 		--glob "prompt_cases/*.md"
 
 test-openai-oneshot:
-	uv run tool-context-relay \
-		--provider openai \
+	 uv run tool-context-relay \
+		--profile openai \
 		--model $(OPENAI_MODEL) \
 		--no-show-system-instruction \
 		--no-fewshots \
 		--glob "prompt_cases/*.md"
-

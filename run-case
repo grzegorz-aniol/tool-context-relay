@@ -7,10 +7,6 @@ set -eu
 #
 MODEL_BIELIK="Bielik-11B-v3.0-Instruct.f16.gguf"
 
-# If `--provider openai-compat` is used without an explicit endpoint (and without OPENAI_BASE_URL/OPENAI_API_BASE),
-# the wrapper injects a default endpoint.
-DEFAULT_OPENAI_COMPAT_ENDPOINT="${TCR_OPENAI_COMPAT_ENDPOINT_DEFAULT:-http://127.0.0.1:1234/v1}"
-
 usage() {
   cat <<'EOF'
 Usage:
@@ -18,14 +14,13 @@ Usage:
 
 Examples:
   ./run-case case1
-  ./run-case --provider openai-compat --model BIELIK case1
-  ./run-case --provider openai --model gpt-4.1-mini case2
+  ./run-case --profile bielik --model BIELIK case1
+  ./run-case --profile openai --model gpt-4.1-mini case2
 
 Notes:
   - <case-id> should be "case1".."caseN" (numeric ids like "1" are also accepted).
   - `--model` also accepts aliases defined in this file (e.g. BIELIK).
-  - For `--provider openai-compat`, an endpoint is required by the CLI; this wrapper supplies a default unless you pass
-    `--endpoint ...` or set OPENAI_BASE_URL/OPENAI_API_BASE.
+  - Use `--profile` to point the CLI at a different profile (defaults to openai).
 EOF
 }
 
@@ -43,8 +38,7 @@ script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 repo_root="$script_dir"
 cd "$repo_root"
 
-# The wrapper mirrors the CLI shape: flags first, "prompt" last.
-# Here, <case-id> is our "prompt selector", so it must be the last argument.
+# The wrapper mirrors the CLI shape: flags first, "prompt" (case) last.
 case_id=""
 for arg in "$@"; do
   case_id="$arg"
@@ -67,44 +61,28 @@ else
 fi
 
 quote_sh() {
-  # Single-quote a string for POSIX sh; escape internal single quotes.
   printf "'%s'" "$(printf "%s" "$1" | sed "s/'/'\\\\''/g")"
 }
 
 expanded_argv=""
-provider=""
-has_endpoint="0"
+profile_provided="0"
 
 # Parse tool-context-relay options (everything except the last arg, which is <case-id>).
 while [ $# -gt 1 ]; do
   case "$1" in
-    --provider)
-      provider="${2:-}"
-      if [ -z "$provider" ]; then
-        echo "Missing value for --provider." >&2
+    --profile)
+      profile_value="${2:-}"
+      if [ -z "$profile_value" ]; then
+        echo "Missing value for --profile." >&2
         exit 2
       fi
-      expanded_argv="${expanded_argv} $(quote_sh --provider) $(quote_sh "$provider")"
+      expanded_argv="${expanded_argv} $(quote_sh --profile) $(quote_sh "$profile_value")"
+      profile_provided="1"
       shift 2
       ;;
-    --provider=*)
-      provider="${1#--provider=}"
+    --profile=*)
       expanded_argv="${expanded_argv} $(quote_sh "$1")"
-      shift 1
-      ;;
-    --endpoint)
-      has_endpoint="1"
-      endpoint_value="${2:-}"
-      if [ -z "$endpoint_value" ]; then
-        echo "Missing value for --endpoint." >&2
-        exit 2
-      fi
-      expanded_argv="${expanded_argv} $(quote_sh --endpoint) $(quote_sh "$endpoint_value")"
-      shift 2
-      ;;
-    --endpoint=*)
-      has_endpoint="1"
-      expanded_argv="${expanded_argv} $(quote_sh "$1")"
+      profile_provided="1"
       shift 1
       ;;
     --model)
@@ -133,12 +111,6 @@ while [ $# -gt 1 ]; do
       ;;
   esac
 done
-
-if [ "$provider" = "openai-compat" ] && [ "$has_endpoint" -eq 0 ]; then
-  if [ -z "${OPENAI_BASE_URL:-}" ] && [ -z "${OPENAI_API_BASE:-}" ]; then
-    expanded_argv="${expanded_argv} $(quote_sh --endpoint) $(quote_sh "$DEFAULT_OPENAI_COMPAT_ENDPOINT")"
-  fi
-fi
 
 expanded_argv="${expanded_argv} $(quote_sh --file) $(quote_sh "$case_file")"
 

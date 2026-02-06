@@ -10,18 +10,46 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tool_context_relay.cli import _parse_kv, _run_from_files, main
+from tool_context_relay.cli import _parse_kv, _run_from_files, main, _validate_case
 from tool_context_relay.cli import _normalize_model_for_agents
 from tool_context_relay.cli import _format_startup_config_line
+from tool_context_relay.testing.integration_hooks import CapturedToolCall
+from tool_context_relay.testing.prompt_cases import PromptCase, ToolCallExpectation
+from tool_context_relay.tools.tool_relay import box_value
+from tool_context_relay.openai_env import load_profile
 
 
 class CliTests(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
-        self._prior: dict[str, str | None] = {}
-        for key in ("OPENAI_BASE_URL", "OPENAI_API_BASE", "OPENAI_API_KEY"):
-            self._prior[key] = os.environ.get(key)
+        keys = (
+            "OPENAI_BASE_URL",
+            "OPENAI_API_BASE",
+            "OPENAI_API_KEY",
+            "OPENAI_MODEL",
+            "TOOL_CONTEXT_RELAY_PROFILE",
+            "LANGFUSE_SECRET_KEY",
+            "LANGFUSE_PUBLIC_KEY",
+            "LANGFUSE_BASE_URL",
+            "BIELIK_PROVIDER",
+            "BIELIK_API_KEY",
+            "BIELIK_BASE_URL",
+            "BIELIK_MODEL",
+            "QWEN_PROVIDER",
+            "QWEN_API_KEY",
+            "QWEN_BASE_URL",
+            "QWEN_MODEL",
+            "OPENROUTER_PROVIDER",
+            "OPENROUTER_API_KEY",
+            "OPENROUTER_BASE_URL",
+            "OPENROUTER_MODEL",
+        )
+        self._prior: dict[str, str | None] = {key: os.environ.get(key) for key in keys}
+        for key in keys:
             os.environ.pop(key, None)
+        os.environ["OPENAI_API_KEY"] = "sk-test"
+        self._load_dotenv_patcher = patch("tool_context_relay.cli.load_dotenv", return_value=True)
+        self.load_dotenv = self._load_dotenv_patcher.start()
 
     def tearDown(self) -> None:
         for key, value in self._prior.items():
@@ -29,21 +57,25 @@ class CliTests(unittest.TestCase):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+        self._load_dotenv_patcher.stop()
         super().tearDown()
 
     def test_format_startup_config_line(self):
         line = _format_startup_config_line(
-            provider_requested="auto",
-            provider_resolved="openai-compat",
-            model_requested="speakleash/Bielik",
+            profile="bielik",
+            provider="openai-compat",
+            model_requested="openai/speakleash/Bielik",
             model_effective="speakleash/Bielik",
             endpoint="http://127.0.0.1:1234/v1",
             temperature=0.1,
+            boxing_mode="opaque",
         )
-        self.assertIn("provider=openai-compat (requested=auto)", line)
-        self.assertIn("model=speakleash/Bielik", line)
+        self.assertIn("profile=bielik", line)
+        self.assertIn("provider=openai-compat", line)
+        self.assertIn("model=speakleash/Bielik (requested=openai/speakleash/Bielik)", line)
         self.assertIn("endpoint=http://127.0.0.1:1234/v1", line)
         self.assertIn("temperature=0.1", line)
+        self.assertIn("boxing=opaque", line)
 
     def test_normalize_model_for_agents_leaves_plain_models_untouched(self):
         self.assertEqual(_normalize_model_for_agents(model="gpt-4.1-mini"), "gpt-4.1-mini")
@@ -65,7 +97,6 @@ class CliTests(unittest.TestCase):
         )
 
     def test_main_prints_startup_config_for_valid_invocation(self):
-        os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
         stdout = io.StringIO()
         stderr = io.StringIO()
         with (
@@ -76,30 +107,23 @@ class CliTests(unittest.TestCase):
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
-            code = main(
-                [
-                    "--provider",
-                    "openai-compat",
-                    "--endpoint",
-                    "http://127.0.0.1:1234/v1",
-                    "--model",
-                    "speakleash/Bielik",
-                    "hi",
-                ]
-        )
+            code = main(["--model", "speakleash/Bielik", "hi"])
 
         self.assertEqual(code, 0)
         self.assertIn("<info>", stdout.getvalue())
         self.assertIn("Config used:", stdout.getvalue())
-        self.assertIn("provider=openai-compat", stdout.getvalue())
+        self.assertIn("profile=openai", stdout.getvalue())
+        self.assertIn("provider=openai", stdout.getvalue())
         self.assertIn("model=speakleash/Bielik", stdout.getvalue())
-        self.assertIn("endpoint=http://127.0.0.1:1234/v1", stdout.getvalue())
         self.assertEqual(stderr.getvalue(), "")
         self.assertEqual(run_once.call_args.kwargs["print_tools"], False)
         self.assertIsNone(run_once.call_args.kwargs["temperature"])
+        self.assertEqual(run_once.call_args.kwargs["boxing_mode"], "opaque")
+        self.assertEqual(run_once.call_args.kwargs["profile"], "openai")
+        self.assertEqual(run_once.call_args.kwargs["profile_config"].provider, "openai")
 
     def test_main_print_tools_flag_is_passed_to_runner(self):
-        os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
+        os.environ["OPENAI_API_KEY"] = "sk-compat"
         stdout = io.StringIO()
         stderr = io.StringIO()
         with (
@@ -110,18 +134,7 @@ class CliTests(unittest.TestCase):
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
-            code = main(
-                [
-                    "--provider",
-                    "openai-compat",
-                    "--endpoint",
-                    "http://127.0.0.1:1234/v1",
-                    "--model",
-                    "speakleash/Bielik",
-                    "--print-tools",
-                    "hi",
-                ]
-        )
+            code = main(["--model", "speakleash/Bielik", "--print-tools", "hi"])
 
         self.assertEqual(code, 0)
         self.assertIn("<info>", stdout.getvalue())
@@ -129,9 +142,11 @@ class CliTests(unittest.TestCase):
         self.assertEqual(stderr.getvalue(), "")
         self.assertEqual(run_once.call_args.kwargs["print_tools"], True)
         self.assertIsNone(run_once.call_args.kwargs["temperature"])
+        self.assertEqual(run_once.call_args.kwargs["boxing_mode"], "opaque")
+        self.assertEqual(run_once.call_args.kwargs["profile"], "openai")
 
     def test_main_passes_temperature_flag_to_runner(self):
-        os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
+        os.environ["OPENAI_API_KEY"] = "sk-compat"
         stdout = io.StringIO()
         stderr = io.StringIO()
         with (
@@ -142,26 +157,16 @@ class CliTests(unittest.TestCase):
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
-            code = main(
-                [
-                    "--provider",
-                    "openai-compat",
-                    "--endpoint",
-                    "http://127.0.0.1:1234/v1",
-                    "--model",
-                    "gpt-4.1-mini",
-                    "--temperature",
-                    "0.7",
-                    "hi",
-                ]
-            )
+            code = main(["--model", "gpt-4.1-mini", "--temperature", "0.7", "hi"])
 
         self.assertEqual(code, 0)
         self.assertEqual(stderr.getvalue(), "")
         self.assertEqual(run_once.call_args.kwargs["temperature"], 0.7)
+        self.assertEqual(run_once.call_args.kwargs["boxing_mode"], "opaque")
+        self.assertEqual(run_once.call_args.kwargs["profile"], "openai")
 
-    def test_main_ignores_temperature_for_reasoning_model(self):
-        os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
+    def test_main_passes_boxing_flag_to_runner(self):
+        os.environ["OPENAI_API_KEY"] = "sk-compat"
         stdout = io.StringIO()
         stderr = io.StringIO()
         with (
@@ -172,79 +177,42 @@ class CliTests(unittest.TestCase):
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
-            code = main(
-                [
-                    "--provider",
-                    "openai-compat",
-                    "--endpoint",
-                    "http://127.0.0.1:1234/v1",
-                    "--model",
-                    "gpt-5.2",
-                    "--temperature",
-                    "0.7",
-                    "hi",
-                ]
-            )
+            code = main(["--boxing", "json", "hi"])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(run_once.call_args.kwargs["boxing_mode"], "json")
+        self.assertEqual(run_once.call_args.kwargs["profile"], "openai")
+
+    def test_main_ignores_temperature_for_reasoning_model(self):
+        os.environ["OPENAI_API_KEY"] = "sk-compat"
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch(
+                "tool_context_relay.main.run_once",
+                return_value=("ok", SimpleNamespace(kv={})),
+            ) as run_once,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            code = main(["--model", "gpt-5.2", "--temperature", "0.7", "hi"])
 
         self.assertEqual(code, 0)
         self.assertIn("Ignoring --temperature=0.7", stdout.getvalue())
         self.assertEqual(stderr.getvalue(), "")
         self.assertIsNone(run_once.call_args.kwargs["temperature"])
+        self.assertEqual(run_once.call_args.kwargs["boxing_mode"], "opaque")
 
-    def test_main_rejects_openai_provider_with_endpoint(self):
+    def test_main_rejects_profile_without_api_key(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = main(["--provider", "openai", "--endpoint", "http://example.test/v1", "   "])
+            code = main(["--profile", "bielik", "hi"])
 
         self.assertEqual(code, 2)
         self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("Provider 'openai' cannot be used with an endpoint override", stderr.getvalue())
-
-    def test_main_rejects_openai_compat_provider_without_endpoint(self):
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = main(["--provider", "openai-compat", "   "])
-
-        self.assertEqual(code, 2)
-        self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("Provider 'openai-compat' requires an endpoint override", stderr.getvalue())
-
-    def test_main_sets_endpoint_env(self):
-        prior_base_url = os.environ.get("OPENAI_BASE_URL")
-        prior_api_base = os.environ.get("OPENAI_API_BASE")
-        try:
-            stdout = io.StringIO()
-            stderr = io.StringIO()
-            with redirect_stdout(stdout), redirect_stderr(stderr):
-                code = main(["--endpoint", "http://example.test/v1", "   "])
-
-            self.assertEqual(code, 2)
-            self.assertEqual(stdout.getvalue(), "")
-            self.assertIn("Prompt must not be empty.", stderr.getvalue())
-            self.assertEqual(os.environ.get("OPENAI_BASE_URL"), "http://example.test/v1")
-            self.assertEqual(os.environ.get("OPENAI_API_BASE"), "http://example.test/v1")
-        finally:
-            if prior_base_url is None:
-                os.environ.pop("OPENAI_BASE_URL", None)
-            else:
-                os.environ["OPENAI_BASE_URL"] = prior_base_url
-
-            if prior_api_base is None:
-                os.environ.pop("OPENAI_API_BASE", None)
-            else:
-                os.environ["OPENAI_API_BASE"] = prior_api_base
-
-    def test_main_rejects_empty_endpoint(self):
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            code = main(["--endpoint", "   ", "hi"])
-
-        self.assertEqual(code, 2)
-        self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("Endpoint must not be empty.", stderr.getvalue())
+        self.assertIn("must set BIELIK_API_KEY", stderr.getvalue())
 
     def test_parse_kv_ok(self):
         self.assertEqual(_parse_kv(["a=1", "b=two=2"]), {"a": "1", "b": "two=2"})
@@ -302,7 +270,6 @@ class CliTests(unittest.TestCase):
         self.assertIn("Use either a literal prompt argument OR --file/--glob", stderr.getvalue())
 
     def test_main_file_mode_calls_run_from_files(self):
-        os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "case.md"
             path.write_text("hello", encoding="utf-8")
@@ -316,10 +283,6 @@ class CliTests(unittest.TestCase):
             ):
                 code = main(
                     [
-                        "--provider",
-                        "openai-compat",
-                        "--endpoint",
-                        "http://127.0.0.1:1234/v1",
                         "--file",
                         str(path),
                     ]
@@ -330,9 +293,10 @@ class CliTests(unittest.TestCase):
             self.assertEqual(run_from_files.call_count, 1)
             called_files = run_from_files.call_args.kwargs["files"]
             self.assertEqual([Path(p) for p in called_files], [path])
+            self.assertEqual(run_from_files.call_args.kwargs["profile"], "openai")
+            self.assertEqual(run_from_files.call_args.kwargs["profile_config"].provider, "openai")
 
     def test_main_glob_mode_expands_and_calls_run_from_files(self):
-        os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / "a.md").write_text("a", encoding="utf-8")
@@ -347,10 +311,6 @@ class CliTests(unittest.TestCase):
             ):
                 code = main(
                     [
-                        "--provider",
-                        "openai-compat",
-                        "--endpoint",
-                        "http://127.0.0.1:1234/v1",
                         "--glob",
                         str(root / "*.md"),
                     ]
@@ -360,6 +320,8 @@ class CliTests(unittest.TestCase):
             self.assertEqual(stderr.getvalue(), "")
             called_files = [Path(p) for p in run_from_files.call_args.kwargs["files"]]
             self.assertEqual(called_files, [root / "a.md", root / "b.md"])
+            self.assertEqual(run_from_files.call_args.kwargs["profile"], "openai")
+            self.assertEqual(run_from_files.call_args.kwargs["profile_config"].provider, "openai")
 
     def test_run_from_files_prints_end_summary_with_pass_fail_and_reasons(self):
         with tempfile.TemporaryDirectory() as td:
@@ -399,12 +361,14 @@ class CliTests(unittest.TestCase):
                 code = _run_from_files(
                     files=[pass_path, fail_path, broken_path],
                     model="gpt-4.1-mini",
-                    provider="openai",
+                    profile="openai",
+                    profile_config=load_profile("openai"),
                     initial_kv={},
                     print_tools=False,
                     fewshots=False,
                     show_system_instruction=False,
                     temperature=None,
+                    boxing_mode="opaque",
                     dump_context=False,
                 )
 
@@ -415,3 +379,17 @@ class CliTests(unittest.TestCase):
             self.assertIn("broken.md", stderr.getvalue())
             self.assertIn("tool call sequence mismatch", stderr.getvalue())
             self.assertIn("missing YAML frontmatter closing delimiter", stderr.getvalue())
+
+    def test_validate_case_accepts_json_boxed_results(self):
+        case = PromptCase(
+            case_id="case1",
+            prompt="hi",
+            forbidden_tools=set(),
+            tool_calls=[ToolCallExpectation(tool_name="yt_transcribe", opaque_id_result=True)],
+            expect_internal_resolve=False,
+        )
+        result = box_value("x" * 2048, mode="json")
+        calls = [CapturedToolCall(name="yt_transcribe", arguments={}, result=result)]
+
+        errors = _validate_case(case, calls)
+        self.assertEqual(errors, [])
