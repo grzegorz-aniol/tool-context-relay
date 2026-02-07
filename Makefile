@@ -12,7 +12,7 @@ ci:
 integration:
 	uv run python -m pytest -m integration -v tests/integration/
 
-# ------------- QWEN --------------
+# ------------- QWEN3 8b --------------
 
 test-qwen-oneshot:
 	uv run tool-context-relay \
@@ -44,7 +44,29 @@ test-json-qwen-fewshots:
 		--fewshots \
 		--glob "prompts/*.md"
 
+# ------------- QWEN3 14b --------------
+test-qwen-14b-oneshot:
+	uv run tool-context-relay \
+		--profile qwen14b \
+		--no-show-system-instruction \
+		--no-fewshots \
+		--glob "prompts/*.md"
+
+test-qwen-14b-fewshots:
+	uv run tool-context-relay \
+		--profile qwen14b \
+		--no-show-system-instruction \
+		--fewshots \
+		--glob "prompts/*.md"
+
 # ------------- BIELIK --------------
+
+test-bielik-oneshot:
+	 uv run tool-context-relay \
+		--profile bielik \
+		--no-show-system-instruction \
+		--no-fewshots \
+		--glob "prompts/*.md"
 
 test-bielik-fewshots:
 	 uv run tool-context-relay \
@@ -53,11 +75,20 @@ test-bielik-fewshots:
 		--fewshots \
 		--glob "prompts/*.md"
 
-test-bielik-oneshot:
+
+# ------------- DeepSeek --------------
+test-deepseek-oneshot:
 	 uv run tool-context-relay \
-		--profile bielik \
+		--profile deepseek \
 		--no-show-system-instruction \
 		--no-fewshots \
+		--glob "prompts/*.md"
+
+test-deepseek-fewshots:
+	 uv run tool-context-relay \
+		--profile deepseek \
+		--no-show-system-instruction \
+		--fewshots \
 		--glob "prompts/*.md"
 
 # ------------- OPENAI --------------
