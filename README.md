@@ -311,7 +311,7 @@ I tested Tool Context Relay with following models
 Based on the tables above (limited experiments):
 
 - Flagship models like `gpt-4o` and `gpt-5.2` were reliable even without few-shot examples, so a strong “training-style” system prompt may not be strictly required for them in practice.
-- Weaker/smaller models (especially `*-mini` and `qwen-3b`) were noticeably less consistent without extra guidance; for these, few-shot examples improved reliability across all models, especially for the weaker ones.
+- Weaker/smaller models (especially `*-mini`, `qwen-3b` and few others) were noticeably less consistent without extra guidance; for these, few-shot examples improved reliability across all models, especially for the weaker ones.
 - Overall, the Tool Context Relay pattern worked well across all tested models when few-shot examples were provided, demonstrating its effectiveness in managing long tool outputs without overwhelming the model's context. 
 - Few-shot examples likely won’t be necessary for weaker models after fine-tuning on similar tasks, but that’s outside the scope of this PoC.
 
