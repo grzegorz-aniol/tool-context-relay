@@ -37,7 +37,7 @@ values and do not need to know that opaque references exist. The only tools that
 This repo is a minimal CLI PoC of that idea using a few simulated tools (transcribe YouTube, deep-check text, write to Google Drive)
 and prompt-case files that assert the expected pass-through behavior.
 
-> The idea and its usage recommendations are also described in the companion article on my blog: https://appga.pl/
+> The idea and its usage recommendations are also described in the companion [article on my blog](https://appga.pl/2026/02/07/tool-context-relay-how-not-to-flood-the-context-with-long-tool-result/)
 
 
 ## Opaque reference (what it is)
