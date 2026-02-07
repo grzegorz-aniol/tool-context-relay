@@ -716,12 +716,15 @@ def _run_from_files(
 
 def _reason_for_result(result: FileRunResult) -> str:
     if result.reasons:
-        cleaned = (_strip_tool_call_arguments(reason) for reason in result.reasons)
+        cleaned = (
+            _truncate_reason_clause(_strip_tool_call_arguments(reason))
+            for reason in result.reasons
+        )
         return "; ".join(cleaned)
     if result.status == "passed":
         return ""
     if result.status == "no_validation":
-        return "validation not configured"
+        return "?"
     return result.status
 
 
@@ -732,6 +735,14 @@ def _sanitize_table_cell(value: str) -> str:
 
 def _strip_tool_call_arguments(value: str) -> str:
     return re.sub(r",? arguments=.*$", "", value, flags=re.DOTALL)
+
+
+def _truncate_reason_clause(value: str) -> str:
+    trimmed = value.strip()
+    if not trimmed:
+        return ""
+    clause, _, _ = trimmed.partition(";")
+    return clause.strip()
 
 
 def _print_validation_summary_table(

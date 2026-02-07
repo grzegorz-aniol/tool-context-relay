@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from tool_context_relay.cli import _parse_kv, _run_from_files, main, _validate_case
 from tool_context_relay.cli import _normalize_model_for_agents
 from tool_context_relay.cli import _format_startup_config_line
+from tool_context_relay.cli import FileRunResult, _reason_for_result
 from tool_context_relay.testing.integration_hooks import CapturedToolCall
 from tool_context_relay.testing.prompt_cases import PromptCase, ToolCallExpectation
 from tool_context_relay.tools.tool_relay import box_value
@@ -424,8 +425,25 @@ class CliTests(unittest.TestCase):
             self.assertIn("passcase", stdout.getvalue())
             self.assertIn("failcase", stdout.getvalue())
             self.assertIn("broken.md", stderr.getvalue())
-            self.assertIn("tool call sequence mismatch", stderr.getvalue())
-            self.assertIn("missing YAML frontmatter closing", stderr.getvalue())
+        self.assertIn("tool call sequence mismatch", stderr.getvalue())
+        self.assertIn("missing YAML frontmatter closing", stderr.getvalue())
+
+    def test_reason_for_result_truncates_to_first_clause(self):
+        result = FileRunResult(
+            file_path=Path("prompts/case1.md"),
+            case_id="case1",
+            status="failed",
+            reasons=[
+                "tool call sequence mismatch. expected=['yt_transcribe', 'deep_check'], actual=['yt_transcribe']; expected internal_resource_length.opaque_reference to equal 'foo', got '{'",
+            ],
+        )
+
+        reason = _reason_for_result(result)
+
+        self.assertEqual(
+            reason,
+            "tool call sequence mismatch. expected=['yt_transcribe', 'deep_check'], actual=['yt_transcribe']",
+        )
 
     def test_validate_case_accepts_json_boxed_results(self):
         case = PromptCase(

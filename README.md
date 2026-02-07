@@ -80,7 +80,7 @@ The agent instructions/examples and internal resolve-tool descriptions are defin
 
 ## Examples (from prompt cases)
 
-All prompts below come directly from `prompt_cases/`.
+All prompts below come directly from `prompts/`.
 The important part is that long data moves between tools as an opaque reference (default `internal://...`).
 
 Prompt cases are Markdown files with YAML frontmatter. The frontmatter drives integration assertions:
@@ -95,11 +95,11 @@ Prompt cases in this repo (what they test):
 
 | Prompt Id | File                    | Description |
 |----------:|-------------------------|-------------|
-| 0         | `prompt_cases/case0.md` | **No boxing**: uses `video_id='999'` which returns a short transcript in this demo, so it stays below the boxing threshold and no `internal://...` opaque id is used. |
-| 1         | `prompt_cases/case1.md` | **Box + pass-through**: transcript boxed to `internal://...` → `deep_check` gets opaque id unchanged (client unboxes internally). |
-| 2         | `prompt_cases/case2.md` | **Box + route**: transcript boxed → `google_drive_write_file` gets opaque id unchanged; `deep_check` must not be called. |
-| 3         | `prompt_cases/case3.md` | **Resolve only when needed (slice, not full read)**: boxed transcript → `deep_check`, then use **partial slicing** (`internal_resource_read_slice`) to answer a literal detail at the end (avoid full unboxing). |
-| 4         | `prompt_cases/case4.md` | **Mixed outputs**: boxed transcript → `deep_check`, then save transcript (opaque id) and analysis (plain text) to Drive. |
+| 0         | `prompts/case0.md` | **No boxing**: uses `video_id='999'` which returns a short transcript in this demo, so it stays below the boxing threshold and no `internal://...` opaque id is used. |
+| 1         | `prompts/case1.md` | **Box + pass-through**: transcript boxed to `internal://...` → `deep_check` gets opaque id unchanged (client unboxes internally). |
+| 2         | `prompts/case2.md` | **Box + route**: transcript boxed → `google_drive_write_file` gets opaque id unchanged; `deep_check` must not be called. |
+| 3         | `prompts/case3.md` | **Resolve only when needed (slice, not full read)**: boxed transcript → `deep_check`, then use **partial slicing** (`internal_resource_read_slice`) to answer a literal detail at the end (avoid full unboxing). |
+| 4         | `prompts/case4.md` | **Mixed outputs**: boxed transcript → `deep_check`, then save transcript (opaque id) and analysis (plain text) to Drive. |
 
 #### Example 0: short transcript → Deep Check (no boxing)
 
@@ -333,11 +333,11 @@ Run once with a prompt:
 Run from a prompt-case file (Markdown). If the file starts with YAML frontmatter, the CLI validates tool-call behavior
 against that metadata; if there is no frontmatter, it just executes the prompt:
 
-`tool-context-relay --file prompt_cases/case1.md`
+`tool-context-relay --file prompts/case1.md`
 
 Run multiple files via a wildcard pattern:
 
-`tool-context-relay --glob "prompt_cases/*.md"`
+`tool-context-relay --glob "prompts/*.md"`
 
 Dump final context as JSON to stdout:
 
