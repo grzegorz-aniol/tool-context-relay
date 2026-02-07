@@ -40,9 +40,9 @@ and prompt-case files that assert the expected pass-through behavior.
 > The idea and its usage recommendations are also described in the companion article on my blog: https://appga.pl/
 
 
-## Opaque resource ID (what it is)
+## Opaque reference (what it is)
 
-An **opaque resource ID** is a short **URI** string like:
+An **opaque reference** is a short **URI** string like:
 
 `internal://<id>`
 
@@ -86,8 +86,8 @@ The important part is that long data moves between tools as an opaque reference 
 Prompt cases are Markdown files with YAML frontmatter. The frontmatter drives integration assertions:
 
 - `tool_calls`: ordered list of expected tool calls; repeated `tool_name` entries mean multiple expected calls
-- `opaque_id_input`: (per entry) expects the call to receive a previously returned `internal://...` id as an argument value
-- `opaque_id_result`: (per entry) expects the call result to be an `internal://...` id
+- `opaque_id_input`: (per entry) expects the call to receive a previously returned `internal://...` opaque reference as an argument value
+- `opaque_id_result`: (per entry) expects the call result to be an `internal://...` opaque reference
 - `forbidden_tools`: tool names that must not be called
 - `expect_internal_resolve`: whether `internal_resource_*` resolving calls are allowed/required
 
@@ -95,11 +95,11 @@ Prompt cases in this repo (what they test):
 
 | Prompt Id | File                    | Description |
 |----------:|-------------------------|-------------|
-| 0         | `prompts/case0.md` | **No boxing**: uses `video_id='999'` which returns a short transcript in this PoC, so it stays below the boxing threshold and no `internal://...` opaque id is used. |
-| 1         | `prompts/case1.md` | **Box + pass-through**: transcript boxed to `internal://...` → `deep_check` gets opaque id unchanged (client unboxes internally). |
-| 2         | `prompts/case2.md` | **Box + route**: transcript boxed → `google_drive_write_file` gets opaque id unchanged; `deep_check` must not be called. |
+| 0         | `prompts/case0.md` | **No boxing**: uses `video_id='999'` which returns a short transcript in this PoC, so it stays below the boxing threshold and no `internal://...` opaque reference is used. |
+| 1         | `prompts/case1.md` | **Box + pass-through**: transcript boxed to `internal://...` → `deep_check` gets opaque reference unchanged (client unboxes internally). |
+| 2         | `prompts/case2.md` | **Box + route**: transcript boxed → `google_drive_write_file` gets opaque reference unchanged; `deep_check` must not be called. |
 | 3         | `prompts/case3.md` | **Resolve only when needed (slice, not full read)**: boxed transcript → `deep_check`, then use **partial slicing** (`internal_resource_read_slice`) to answer a literal detail at the end (avoid full unboxing). |
-| 4         | `prompts/case4.md` | **Mixed outputs**: boxed transcript → `deep_check`, then save transcript (opaque id) and analysis (plain text) to Drive. |
+| 4         | `prompts/case4.md` | **Mixed outputs**: boxed transcript → `deep_check`, then save transcript (opaque reference) and analysis (plain text) to Drive. |
 
 #### Example 0: short transcript → Deep Check (no boxing)
 
@@ -164,7 +164,7 @@ Intended behavior (the prompt asks for this):
 
 ## Test results
 
-I experimented with a few models to verify the concept. I tried both strong and older/weaker models, to see how well they follow the opaque ID handling instructions. I tested with a few additional few-shot examples (default CLI argument) and zero-shot prompts.
+I experimented with a few models to verify the concept. I tried both strong and older/weaker models, to see how well they follow the opaque reference handling instructions. I tested with a few additional few-shot examples (default CLI argument) and zero-shot prompts.
 
 I tested Tool Context Relay with following models
 
@@ -227,7 +227,7 @@ I tested Tool Context Relay with following models
 
 ### Qwen 3 model
 
-#### Boxing method: opaque ID (default)
+#### Boxing method: opaque reference (default)
 
  | Model         | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
 |---------------|-----------|----------------------------------------|----------|-----------------|
@@ -262,9 +262,9 @@ I tested Tool Context Relay with following models
 |--------------------------|-----------|----------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | Qwen/Qwen3-14B-GGUF:Q8_0 | case0     | -        | ✅               |                                                                                                                                           |
 | Qwen/Qwen3-14B-GGUF:Q8_0 | case1     | -        | ✅               |                                                                                                                                           |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case2     | -        | ❌               | expected google_drive_write_file to receive a previous opaque id as input; expected no internal_resource_* tool calls, but some were made |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case3     | -        | ❌               | expected deep_check to receive a previous opaque id as input                                                                              |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque id as input; expected no internal_resource_* tool calls, but some were made |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case2     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case3     | -        | ❌               | expected deep_check to receive a previous opaque reference as input                                                                              |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
 
 
 | Model                    | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                    |
@@ -273,7 +273,7 @@ I tested Tool Context Relay with following models
 | Qwen/Qwen3-14B-GGUF:Q8_0 | case1     | ✔        | ✅               |                                                                                                                                           |
 | Qwen/Qwen3-14B-GGUF:Q8_0 | case2     | ✔        | ✅               |                                                                                                                                           |
 | Qwen/Qwen3-14B-GGUF:Q8_0 | case3     | ✔        | ✅               |                                                                                                                                           |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | ✔        | ❌               | expected google_drive_write_file to receive a previous opaque id as input; expected no internal_resource_* tool calls, but some were made |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | ✔        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
 
 ### Bielik v3 model
 
@@ -284,11 +284,11 @@ I tested Tool Context Relay with following models
 | Bielik-11b-v3:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
 | Bielik-11b-v3:Q8_0 | 2         | Box + route → Drive                    | -        | ✅               |
 | Bielik-11b-v3:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ❌               |
-| Bielik-11b-v3:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ✅               |
+| Bielik-11b-v3:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
 | Bielik-11b-v3:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
 | Bielik-11b-v3:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
 | Bielik-11b-v3:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
-| Bielik-11b-v3:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
+| Bielik-11b-v3:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ❌               |
 | Bielik-11b-v3:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
 
 ### Deepseek
@@ -299,7 +299,7 @@ I tested Tool Context Relay with following models
 | deepseek/deepseek-v3.2 | case1     | -        | ✅               |                                                                                                                                           |
 | deepseek/deepseek-v3.2 | case2     | -        | ❌               | expected no internal_resource_* tool calls, but some were made                                                                            |
 | deepseek/deepseek-v3.2 | case3     | -        | ✅               |                                                                                                                                           |
-| deepseek/deepseek-v3.2 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque id as input; expected no internal_resource_* tool calls, but some were made |
+| deepseek/deepseek-v3.2 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
 | deepseek/deepseek-v3.2 | case0     | ✔        | ✅               |                                                                                                                                           |
 | deepseek/deepseek-v3.2 | case1     | ✔        | ✅               |                                                                                                                                           |
 | deepseek/deepseek-v3.2 | case2     | ✔        | ✅               |                                                                                                                                           |

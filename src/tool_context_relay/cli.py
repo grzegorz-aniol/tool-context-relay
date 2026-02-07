@@ -128,12 +128,12 @@ def _assert_tool_calls_expectations(
         if exp.opaque_id_input:
             if not opaque_ids_seen:
                 raise AssertionError(
-                    f"expected {call.name} to use an opaque id as input, but no previous opaque id result exists"
+                    f"expected {call.name} to use an opaque reference as input, but no previous opaque reference result exists"
                 )
             uses_prev_opaque = any(value in opaque_ids_seen for value in call.arguments.values())
             if not uses_prev_opaque:
                 raise AssertionError(
-                    f"expected {call.name} to receive a previous opaque id as input; "
+                    f"expected {call.name} to receive a previous opaque reference as input; "
                     f"known_opaque_ids={opaque_ids_seen!r}, arguments={call.arguments!r}"
                 )
 
@@ -141,7 +141,7 @@ def _assert_tool_calls_expectations(
             if not isinstance(call.result, str) or not call.result.strip():
                 raise AssertionError(f"expected {call.name} to return a string result, got {call.result!r}")
             if not is_resource_id(call.result):
-                raise AssertionError(f"expected {call.name} result to be an opaque id, got {call.result!r}")
+                raise AssertionError(f"expected {call.name} result to be an opaque reference, got {call.result!r}")
             opaque_ids_seen.append(call.result)
 
     return opaque_ids_seen
@@ -701,6 +701,8 @@ def _run_from_files(
             f"results_with_resource_id={sum(1 for c in hooks.tool_calls if c.result and is_resource_id(c.result))}",
             stream=sys.stdout,
         )
+        sys.stdout.flush()
+        sys.stderr.flush()
 
     sys.stdout.flush()
     sys.stderr.flush()
