@@ -226,6 +226,7 @@ def _run_single_prompt(
     show_system_instruction: bool,
     temperature: float | None,
     boxing_mode: BoxingMode,
+    max_retries: int | None = None,
     capture_calls: bool = False,
 ) -> tuple[str, Any, CaptureToolCalls | None]:
     """Run a single prompt and optionally capture tool calls.
@@ -251,6 +252,7 @@ def _run_single_prompt(
         temperature=temperature,
         boxing_mode=boxing_mode,
         hooks=hooks,
+        max_retries=max_retries,
     )
 
     return output, context, hooks if capture_calls else None
@@ -331,6 +333,12 @@ def build_parser() -> argparse.ArgumentParser:
             "If omitted, temperature is not set. "
             "For reasoning models, this flag is ignored."
         ),
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=None,
+        help="Max retries for OpenAI requests (passed to AsyncOpenAI).",
     )
     parser.add_argument(
         "--boxing",
@@ -440,6 +448,10 @@ def main(argv: list[str] | None = None) -> int:
             stream=sys.stdout,
         )
         temperature = None
+    max_retries: int | None = args.max_retries
+    if max_retries is not None and max_retries < 0:
+        print("Max retries must be >= 0.", file=sys.stderr)
+        return 2
     config_line = _format_startup_config_line(
         profile=profile,
         provider=profile_config.provider,
@@ -486,6 +498,7 @@ def main(argv: list[str] | None = None) -> int:
                 show_system_instruction=args.show_system_instruction,
                 temperature=temperature,
                 boxing_mode=args.boxing,
+                max_retries=max_retries,
                 dump_context=args.dump_context,
             )
         else:
@@ -501,6 +514,7 @@ def main(argv: list[str] | None = None) -> int:
                 show_system_instruction=args.show_system_instruction,
                 temperature=temperature,
                 boxing_mode=args.boxing,
+                max_retries=max_retries,
                 dump_context=args.dump_context,
             )
     except ModuleNotFoundError as e:
@@ -525,6 +539,7 @@ def _run_literal_prompt(
     show_system_instruction: bool,
     temperature: float | None,
     boxing_mode: BoxingMode,
+    max_retries: int | None = None,
     dump_context: bool,
 ) -> int:
     """Run a literal prompt (no validation)."""
@@ -543,6 +558,7 @@ def _run_literal_prompt(
         temperature=temperature,
         boxing_mode=boxing_mode,
         hooks=hooks,
+        max_retries=max_retries,
     )
 
     if dump_context:
@@ -572,6 +588,7 @@ def _run_from_files(
     show_system_instruction: bool,
     temperature: float | None,
     boxing_mode: BoxingMode,
+    max_retries: int | None = None,
     dump_context: bool,
 ) -> int:
     """Run prompts from one or more files.
@@ -609,17 +626,18 @@ def _run_from_files(
         hooks = CaptureToolCalls(delegate=RunHookHandler(show_system_instruction=show_system_instruction))
         try:
             output, context = run_once(
-            prompt=prompt,
-            model=model,
-            initial_kv=initial_kv,
-            profile=profile,
-            profile_config=profile_config,
-            print_tools=print_tools,
-            fewshots=fewshots,
-            temperature=temperature,
-            boxing_mode=boxing_mode,
-            hooks=hooks,
-        )
+                prompt=prompt,
+                model=model,
+                initial_kv=initial_kv,
+                profile=profile,
+                profile_config=profile_config,
+                print_tools=print_tools,
+                fewshots=fewshots,
+                temperature=temperature,
+                boxing_mode=boxing_mode,
+                hooks=hooks,
+                max_retries=max_retries,
+            )
         except Exception as e:
             emit_error(f"Error running {file_path}: {e}", stream=sys.stderr)
             all_passed = False

@@ -39,10 +39,12 @@ class CliTests(unittest.TestCase):
             "QWEN_API_KEY",
             "QWEN_BASE_URL",
             "QWEN_MODEL",
+            "QWEN_BACKEND_PROVIDER",
             "OPENROUTER_PROVIDER",
             "OPENROUTER_API_KEY",
             "OPENROUTER_BASE_URL",
             "OPENROUTER_MODEL",
+            "OPENROUTER_BACKEND_PROVIDER",
         )
         self._prior: dict[str, str | None] = {key: os.environ.get(key) for key in keys}
         for key in keys:
@@ -205,6 +207,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual(run_once.call_args.kwargs["boxing_mode"], "opaque")
 
     def test_main_rejects_profile_without_api_key(self):
+        os.environ["BIELIK_PROVIDER"] = "openrouter"
+        os.environ["OPENROUTER_BASE_URL"] = "http://localhost:1234/v1"
         stdout = io.StringIO()
         stderr = io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
@@ -320,8 +324,8 @@ class CliTests(unittest.TestCase):
             self.assertEqual(stderr.getvalue(), "")
             called_files = [Path(p) for p in run_from_files.call_args.kwargs["files"]]
             self.assertEqual(called_files, [root / "a.md", root / "b.md"])
-            self.assertEqual(run_from_files.call_args.kwargs["profile"], "openai")
-            self.assertEqual(run_from_files.call_args.kwargs["profile_config"].provider, "openai")
+        self.assertEqual(run_from_files.call_args.kwargs["profile"], "openai")
+        self.assertEqual(run_from_files.call_args.kwargs["profile_config"].provider, "openai")
 
     def test_run_from_files_prints_end_summary_with_pass_fail_and_reasons(self):
         with tempfile.TemporaryDirectory() as td:

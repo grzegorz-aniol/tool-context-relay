@@ -18,6 +18,39 @@ from tool_context_relay.agent.agent import build_agent
 from tool_context_relay.agent.context import RelayContext
 
 
+def _build_model_settings(
+    *,
+    temperature: float | None,
+    provider: str,
+    backend_provider: str | None,
+) -> object | None:
+    from agents import ModelSettings
+
+    model_settings: ModelSettings | None = None
+    if temperature is not None:
+        model_settings = ModelSettings(temperature=temperature)
+
+    metadata: dict[str, object] | None = None
+    if provider == "openrouter":
+        metadata = {
+            "allow_fallbacks": False,
+            "data_collection": "deny",
+        }
+
+    if metadata is not None:
+        payload = dict(metadata)
+        if backend_provider:
+            payload["order"] = [backend_provider]
+        provider_settings = ModelSettings(extra_body={"provider": payload})
+        model_settings = (
+            provider_settings
+            if model_settings is None
+            else model_settings.resolve(provider_settings)
+        )
+
+    return model_settings
+
+
 def run_once(
     *,
     prompt: str,
@@ -30,6 +63,7 @@ def run_once(
     temperature: float | None = None,
     boxing_mode: BoxingMode = "opaque",
     hooks: object | None = None,
+    max_retries: int | None = None,
 ) -> tuple[str, RelayContext]:
     from agents import OpenAIChatCompletionsModel, Runner, set_tracing_disabled
 
@@ -37,26 +71,33 @@ def run_once(
     profile_config = profile_config or load_profile(profile)
     apply_profile(profile_config)
     resolved_provider = profile_config.provider
-    if resolved_provider == "openai-compat":
+    if resolved_provider != "openai":
         # OpenAI-compatible servers typically do not support the OpenAI tracing backend.
         # Disabling tracing avoids confusing non-fatal 401s when OPENAI_API_KEY isn't set.
         set_tracing_disabled(True)
 
+    model_settings = _build_model_settings(
+        temperature=temperature,
+        provider=resolved_provider,
+        backend_provider=profile_config.backend_provider,
+    )
+
     if profile_config.api_key is None:
         raise RuntimeError(f"profile '{profile_config.name}' does not specify an API key")
     base_url = profile_config.endpoint
-    client = (
-        AsyncOpenAI(base_url=base_url, api_key=profile_config.api_key)
-        if base_url is not None
-        else AsyncOpenAI(api_key=profile_config.api_key)
-    )
+    client_kwargs: dict[str, object] = {"api_key": profile_config.api_key}
+    if base_url is not None:
+        client_kwargs["base_url"] = base_url
+    if max_retries is not None:
+        client_kwargs["max_retries"] = max_retries
+    client = AsyncOpenAI(**client_kwargs)
     model_obj = OpenAIChatCompletionsModel(model=model, openai_client=client)
 
     context = RelayContext(kv=dict(initial_kv), boxing_mode=boxing_mode)
     agent = build_agent(
         model=model_obj,
         fewshots=fewshots,
-        temperature=temperature,
+        model_settings=model_settings,
         boxing_mode=boxing_mode,
     )
     if print_tools:

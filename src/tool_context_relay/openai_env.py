@@ -36,14 +36,15 @@ def _normalize_profile_name(value: str) -> str:
     return normalized.upper()
 
 
-def _normalize_provider(value: str | None, endpoint_present: bool) -> str:
+def _normalize_provider_name(value: str | None) -> str:
     if value is None:
-        return "openai-compat" if endpoint_present else "openai"
-    return value.strip().lower()
+        return "openai"
+    normalized = value.strip().lower()
+    return normalized or "openai"
 
 
 def _provider_requires_endpoint(provider: str) -> bool:
-    return provider != "openai"
+    return provider not in {"openai"}
 
 
 @dataclass(frozen=True)
@@ -54,25 +55,33 @@ class ProfileConfig:
     endpoint: str | None
     api_key: str | None
     default_model: str | None
+    backend_provider: str | None
 
 
 def load_profile(profile: str) -> ProfileConfig:
     """Load profile configuration values from environment variables."""
     normalized = _normalize_profile_name(profile)
-    endpoint = _first_env_value(normalized, _BASE_URL_KEYS)
-    provider_value = _getenv_stripped(f"{normalized}_PROVIDER")
-    provider = _normalize_provider(provider_value, endpoint_present=endpoint is not None)
+    provider = _normalize_provider_name(_getenv_stripped(f"{normalized}_PROVIDER"))
+    provider_prefix = provider.upper()
+
+    profile_endpoint = _first_env_value(normalized, _BASE_URL_KEYS)
+    provider_endpoint = _first_env_value(provider_prefix, _BASE_URL_KEYS)
+    endpoint = profile_endpoint or provider_endpoint
     if _provider_requires_endpoint(provider) and endpoint is None:
         raise RuntimeError(
-            f"profile '{profile}' selects provider '{provider}' but does not set any "
-            f"{normalized}_BASE_URL / {normalized}_BASEURL / {normalized}_API_BASE / {normalized}_ENDPOINT"
+            f"profile '{profile}' selects provider '{provider}' but {provider_prefix}_BASE_URL / "
+            f"{provider_prefix}_BASEURL / {provider_prefix}_API_BASE / {provider_prefix}_ENDPOINT "
+            "is not configured"
         )
 
-    api_key = _first_env_value(normalized, _API_KEY_SUFFIXES)
-    if provider == "openai-compat" and api_key is None and normalized == "OPENAI":
+    profile_api_key = _first_env_value(normalized, _API_KEY_SUFFIXES)
+    provider_api_key = _first_env_value(provider_prefix, _API_KEY_SUFFIXES)
+    api_key = profile_api_key or provider_api_key
+    if provider == "openai" and api_key is None and normalized == "OPENAI":
         api_key = _getenv_stripped("OPENAI_COMPAT_API_KEY")
 
     default_model = _getenv_stripped(f"{normalized}_MODEL")
+    backend_provider = _getenv_stripped(f"{normalized}_BACKEND_PROVIDER")
 
     return ProfileConfig(
         name=profile,
@@ -81,6 +90,7 @@ def load_profile(profile: str) -> ProfileConfig:
         endpoint=endpoint,
         api_key=api_key,
         default_model=default_model,
+        backend_provider=backend_provider,
     )
 
 

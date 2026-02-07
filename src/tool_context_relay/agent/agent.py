@@ -93,6 +93,7 @@ def build_agent(
     model: str | Model,
     fewshots: bool = True,
     temperature: float | None = None,
+    model_settings: ModelSettings | None = None,
     boxing_mode: BoxingMode = "opaque",
 ) -> Agent:
 
@@ -138,8 +139,15 @@ def build_agent(
     instructions = "\n\n".join(instruction_parts)
 
     agent_kwargs: dict[str, object] = {}
-    if temperature is not None:
-        agent_kwargs["model_settings"] = ModelSettings(temperature=temperature)
+
+    merged_model_settings = model_settings
+    if merged_model_settings is None and temperature is not None:
+        merged_model_settings = ModelSettings(temperature=temperature)
+    elif merged_model_settings is not None and temperature is not None:
+        merged_model_settings = merged_model_settings.resolve(ModelSettings(temperature=temperature))
+
+    if merged_model_settings is not None:
+        agent_kwargs["model_settings"] = merged_model_settings
 
     return Agent(
         name="Tool Context Relay",

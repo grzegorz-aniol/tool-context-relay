@@ -312,9 +312,7 @@ QWEN_BASE_URL="http://127.0.0.1:1234/v1"
 QWEN_MODEL="Qwen/Qwen3-8B-GGUF:Q8_0"
 ```
 
-When a profile does not specify `*_PROVIDER`, a base URL automatically switches the provider to `openai-compat`.
-If you rely on `*_COMPAT_API_KEY` instead of `*_API_KEY` (e.g. for backwards compatibility), the CLI will honor that
-as long as the prefix matches (e.g. `OPENAI_COMPAT_API_KEY` for the `openai` profile).
+When a profile does not specify `*_PROVIDER`, it defaults to using the `openai` provider definition. `*_PROVIDER` now simply names the provider (e.g. `openrouter`, `llamacpp`, `openai`) so you can configure each target once and have every profile reuse it. You can optionally pin which downstream backend should run the requested model by setting `<PREFIX>_BACKEND_PROVIDER` (for example `OPENROUTER_BACKEND_PROVIDER=anthropic`). The `openrouter` provider always receives `provider.allow_fallbacks=false` plus `provider.data_collection=deny` so it never falls back to OpenAI nor collects telemetry.
 
 Install dependencies (needs network access):
 
@@ -364,6 +362,10 @@ Set `TOOL_CONTEXT_RELAY_PROFILE=bielik` to make a profile the default for your s
 Set sampling temperature (non-reasoning models only):
 
 `tool-context-relay --temperature 0.1 "..."` (ignored for reasoning models like `gpt-5*`)
+
+Control request retries:
+
+`tool-context-relay --max-retries 6 "..."` (overrides the built-in OpenAI client retry count; use `0` to disable).
 
 Select boxing strategy for large tool outputs:
 

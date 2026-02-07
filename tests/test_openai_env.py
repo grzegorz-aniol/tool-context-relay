@@ -22,6 +22,7 @@ class OpenAIEnvTests(unittest.TestCase):
             "BIELIK_BASE_URL",
             "BIELIK_PROVIDER",
             "BIELIK_MODEL",
+            "BIELIK_BACKEND_PROVIDER",
         )
         self._prior: dict[str, str | None] = {key: os.environ.get(key) for key in keys}
         for key in keys:
@@ -42,11 +43,11 @@ class OpenAIEnvTests(unittest.TestCase):
         self.assertIsNone(config.endpoint)
         self.assertEqual(config.api_key, "sk-openai")
 
-    def test_load_profile_autodetects_compat_from_endpoint(self):
+    def test_load_profile_uses_openai_default_even_with_endpoint(self):
         os.environ["BIELIK_BASE_URL"] = "http://localhost:1234/v1"
         os.environ["BIELIK_API_KEY"] = "sk-bielik"
         config = load_profile("   bielik   ")
-        self.assertEqual(config.provider, "openai-compat")
+        self.assertEqual(config.provider, "openai")
         self.assertEqual(config.endpoint, "http://localhost:1234/v1")
         self.assertEqual(config.api_key, "sk-bielik")
 
@@ -61,12 +62,21 @@ class OpenAIEnvTests(unittest.TestCase):
         os.environ["BIELIK_API_KEY"] = "sk-bielik"
         config = load_profile("bielik")
         self.assertEqual(config.provider, "openrouter")
+        self.assertIsNone(config.backend_provider)
+
+    def test_load_profile_reads_model_provider(self):
+        os.environ["BIELIK_PROVIDER"] = "openrouter"
+        os.environ["BIELIK_BASE_URL"] = "http://localhost:1234/v1"
+        os.environ["BIELIK_API_KEY"] = "sk-bielik"
+        os.environ["BIELIK_BACKEND_PROVIDER"] = "anthropic"
+        config = load_profile("bielik")
+        self.assertEqual(config.backend_provider, "anthropic")
 
     def test_load_profile_reads_compat_api_key_alias(self):
         os.environ["OPENAI_BASE_URL"] = "http://localhost:1234/v1"
         os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
         config = load_profile("openai")
-        self.assertEqual(config.provider, "openai-compat")
+        self.assertEqual(config.provider, "openai")
         self.assertEqual(config.api_key, "sk-compat")
 
     def test_apply_profile_sets_env_vars(self):
@@ -77,6 +87,7 @@ class OpenAIEnvTests(unittest.TestCase):
             endpoint="http://endpoint/v1",
             api_key="sk-test",
             default_model="gpt-test",
+            backend_provider="openrouter",
         )
         apply_profile(config)
         self.assertEqual(os.environ.get("OPENAI_API_KEY"), "sk-test")
