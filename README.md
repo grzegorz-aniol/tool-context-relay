@@ -258,22 +258,22 @@ I tested Tool Context Relay with following models
 | qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
 
 
-| Model                    | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                    |
-|--------------------------|-----------|----------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case0     | -        | ✅               |                                                                                                                                           |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case1     | -        | ✅               |                                                                                                                                           |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case2     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case3     | -        | ❌               | expected deep_check to receive a previous opaque reference as input                                                                              |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
+| Model               | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                           |
+|---------------------|-----------|----------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| Qwen/Qwen3-14B:Q8_0 | case0     | -        | ✅               |                                                                                                                                                  |
+| Qwen/Qwen3-14B:Q8_0 | case1     | -        | ✅               |                                                                                                                                                  |
+| Qwen/Qwen3-14B:Q8_0 | case2     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
+| Qwen/Qwen3-14B:Q8_0 | case3     | -        | ❌               | expected deep_check to receive a previous opaque reference as input                                                                              |
+| Qwen/Qwen3-14B:Q8_0 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
 
 
-| Model                    | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                    |
-|--------------------------|-----------|----------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case0     | ✔        | ✅               |                                                                                                                                           |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case1     | ✔        | ✅               |                                                                                                                                           |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case2     | ✔        | ✅               |                                                                                                                                           |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case3     | ✔        | ✅               |                                                                                                                                           |
-| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | ✔        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
+| Model               | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                           |
+|---------------------|-----------|----------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| Qwen/Qwen3-14B:Q8_0 | case0     | ✔        | ✅               |                                                                                                                                                  |
+| Qwen/Qwen3-14B:Q8_0 | case1     | ✔        | ✅               |                                                                                                                                                  |
+| Qwen/Qwen3-14B:Q8_0 | case2     | ✔        | ✅               |                                                                                                                                                  |
+| Qwen/Qwen3-14B:Q8_0 | case3     | ✔        | ✅               |                                                                                                                                                  |
+| Qwen/Qwen3-14B:Q8_0 | case4     | ✔        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
 
 ### Bielik v3 model
 
@@ -293,18 +293,18 @@ I tested Tool Context Relay with following models
 
 ### Deepseek
 
-| Model                  | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                    |
-|------------------------|-----------|----------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| deepseek/deepseek-v3.2 | case0     | -        | ✅               |                                                                                                                                           |
-| deepseek/deepseek-v3.2 | case1     | -        | ✅               |                                                                                                                                           |
-| deepseek/deepseek-v3.2 | case2     | -        | ❌               | expected no internal_resource_* tool calls, but some were made                                                                            |
-| deepseek/deepseek-v3.2 | case3     | -        | ✅               |                                                                                                                                           |
-| deepseek/deepseek-v3.2 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
-| deepseek/deepseek-v3.2 | case0     | ✔        | ✅               |                                                                                                                                           |
-| deepseek/deepseek-v3.2 | case1     | ✔        | ✅               |                                                                                                                                           |
-| deepseek/deepseek-v3.2 | case2     | ✔        | ✅               |                                                                                                                                           |
-| deepseek/deepseek-v3.2 | case3     | ✔        | ✅               |                                                                                                                                           |
-| deepseek/deepseek-v3.2 | case4     | ✔        | ✅               |                                                                                                                                           |
+| Model         | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                           |
+|---------------|-----------|----------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| deepseek-v3.2 | case0     | -        | ✅               |                                                                                                                                                  |
+| deepseek-v3.2 | case1     | -        | ✅               |                                                                                                                                                  |
+| deepseek-v3.2 | case2     | -        | ❌               | expected no internal_resource_* tool calls, but some were made                                                                                   |
+| deepseek-v3.2 | case3     | -        | ✅               |                                                                                                                                                  |
+| deepseek-v3.2 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
+| deepseek-v3.2 | case0     | ✔        | ✅               |                                                                                                                                                  |
+| deepseek-v3.2 | case1     | ✔        | ✅               |                                                                                                                                                  |
+| deepseek-v3.2 | case2     | ✔        | ✅               |                                                                                                                                                  |
+| deepseek-v3.2 | case3     | ✔        | ✅               |                                                                                                                                                  |
+| deepseek-v3.2 | case4     | ✔        | ✅               |                                                                                                                                                  |
 
 ## Conclusion (based on test results)
 
