@@ -34,7 +34,7 @@ Most importantly: **the client fully owns boxing/unboxing**. Real tools always r
 values and do not need to know that opaque references exist. The only tools that deal with opaque references directly are the
 **internal** “resolve” helpers (read / slice / length), which exist purely to let the model inspect underlying content when needed.
 
-This repo is a minimal CLI demo of that idea using a few simulated tools (transcribe YouTube, deep-check text, write to Google Drive)
+This repo is a minimal CLI PoC of that idea using a few simulated tools (transcribe YouTube, deep-check text, write to Google Drive)
 and prompt-case files that assert the expected pass-through behavior.
 
 > The idea and its usage recommendations are also described in the companion article on my blog: https://appga.pl/
@@ -51,7 +51,7 @@ Properties:
 - It is a **URI**: it uses a scheme (`internal://`) to clearly distinguish references from normal text values.
 - It is **opaque**: the model must treat it as data, not instructions, and must not try to interpret it.
 - It is **client-owned**: the client decides how to store and retrieve the underlying value (memory, files, database, etc.).
-- It is **session-scoped** in this demo: the id is only meaningful for the lifetime of the client process/session.
+- It is **session-scoped** in this PoC: the id is only meaningful for the lifetime of the client process/session.
 
 If the model truly needs the underlying content, the client can expose narrow “resolve” tools (e.g. length, slice, full read)
 so the model can inspect just what’s needed rather than pulling the entire payload into context.
@@ -95,7 +95,7 @@ Prompt cases in this repo (what they test):
 
 | Prompt Id | File                    | Description |
 |----------:|-------------------------|-------------|
-| 0         | `prompts/case0.md` | **No boxing**: uses `video_id='999'` which returns a short transcript in this demo, so it stays below the boxing threshold and no `internal://...` opaque id is used. |
+| 0         | `prompts/case0.md` | **No boxing**: uses `video_id='999'` which returns a short transcript in this PoC, so it stays below the boxing threshold and no `internal://...` opaque id is used. |
 | 1         | `prompts/case1.md` | **Box + pass-through**: transcript boxed to `internal://...` → `deep_check` gets opaque id unchanged (client unboxes internally). |
 | 2         | `prompts/case2.md` | **Box + route**: transcript boxed → `google_drive_write_file` gets opaque id unchanged; `deep_check` must not be called. |
 | 3         | `prompts/case3.md` | **Resolve only when needed (slice, not full read)**: boxed transcript → `deep_check`, then use **partial slicing** (`internal_resource_read_slice`) to answer a literal detail at the end (avoid full unboxing). |
@@ -158,7 +158,7 @@ User prompt:
 Intended behavior (the prompt asks for this):
 
 1. `yt_transcribe(...)` returns `internal://...`
-2. `deep_check(text="internal://...")` returns a short analysis string (in this demo it usually won’t be boxed)
+2. `deep_check(text="internal://...")` returns a short analysis string (in this PoC it usually won’t be boxed)
 3. `google_drive_write_file(file_content="internal://...", file_name="transcript.txt")`
 4. `google_drive_write_file(file_content="<analysis>", file_name="analysis.txt")` (tools can accept either plain text or an opaque reference)
 
@@ -198,18 +198,18 @@ I tested Tool Context Relay with following models
 | gpt-4o      | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
  
 
-| Model   | Prompt Id  | Prompt (short)                         | Few-shot | Resolve success |
-|---------|------------|----------------------------------------|----------|-----------------|
-| gpt-5-mini | 0          | No boxing                              | -        | ✅               |
-| gpt-5-mini | 1          | Box + pass-through → `deep_check`      | -        | ✅               |
-| gpt-5-mini | 2          | Box + route → Drive                    | -        | ❌               |
-| gpt-5-mini | 3          | Box + slice tail detail (no full read) | -        | ✅               |
-| gpt-5-mini | 4          | Box + `deep_check` + save both outputs | -        | ✅               |
-| gpt-5-mini | 0          | No boxing                              | ✔        | ✅               |
-| gpt-5-mini | 1          | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| gpt-5-mini | 2          | Box + route → Drive                    | ✔        | ✅               |
-| gpt-5-mini | 3          | Box + slice tail detail (no full read) | ✔        | ✅               |
-| gpt-5-mini | 4          | Box + `deep_check` + save both outputs | ✔        | ✅               |
+| Model      | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|------------|-----------|----------------------------------------|----------|-----------------|
+| gpt-5-mini | 0         | No boxing                              | -        | ✅               |
+| gpt-5-mini | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
+| gpt-5-mini | 2         | Box + route → Drive                    | -        | ❌               |
+| gpt-5-mini | 3         | Box + slice tail detail (no full read) | -        | ✅               |
+| gpt-5-mini | 4         | Box + `deep_check` + save both outputs | -        | ✅               |
+| gpt-5-mini | 0         | No boxing                              | ✔        | ✅               |
+| gpt-5-mini | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| gpt-5-mini | 2         | Box + route → Drive                    | ✔        | ✅               |
+| gpt-5-mini | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
+| gpt-5-mini | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
 
 
 | Model   | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
@@ -229,33 +229,51 @@ I tested Tool Context Relay with following models
 
 #### Boxing method: opaque ID (default)
 
- | Model        | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|--------------|-----------|----------------------------------------|----------|-----------------|
-| qwen-3b:Q8_0 | 0         | No boxing                              | -        | ✅               |
-| qwen-3b:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ❌               |
-| qwen-3b:Q8_0 | 2         | Box + route → Drive                    | -        | ✅               |
-| qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ❌               |
-| qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
-| qwen-3b:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
-| qwen-3b:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| qwen-3b:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
-| qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
-| qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+ | Model         | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|---------------|-----------|----------------------------------------|----------|-----------------|
+| qwen3-8b:Q8_0 | 0         | No boxing                              | -        | ✅               |
+| qwen3-8b:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ❌               |
+| qwen3-8b:Q8_0 | 2         | Box + route → Drive                    | -        | ✅               |
+| qwen3-8b:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ❌               |
+| qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
+| qwen3-8b:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
 
 #### Boxing method: JSON
 
- | Model        | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|--------------|-----------|----------------------------------------|----------|-----------------|
-| qwen-3b:Q8_0 | 0         | No boxing                              | -        | ✅               |
-| qwen-3b:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ❌               |
-| qwen-3b:Q8_0 | 2         | Box + route → Drive                    | -        | ❌               |
-| qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ✅               |
-| qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
-| qwen-3b:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
-| qwen-3b:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| qwen-3b:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
-| qwen-3b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ❌               |
-| qwen-3b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+ | Model         | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
+|---------------|-----------|----------------------------------------|----------|-----------------|
+| qwen3-8b:Q8_0 | 0         | No boxing                              | -        | ✅               |
+| qwen3-8b:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ❌               |
+| qwen3-8b:Q8_0 | 2         | Box + route → Drive                    | -        | ❌               |
+| qwen3-8b:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ✅               |
+| qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
+| qwen3-8b:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ❌               |
+| qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+
+
+| Model                    | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                    |
+|--------------------------|-----------|----------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case0     | -        | ✅               |                                                                                                                                           |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case1     | -        | ✅               |                                                                                                                                           |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case2     | -        | ❌               | expected google_drive_write_file to receive a previous opaque id as input; expected no internal_resource_* tool calls, but some were made |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case3     | -        | ❌               | expected deep_check to receive a previous opaque id as input                                                                              |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque id as input; expected no internal_resource_* tool calls, but some were made |
+
+
+| Model                    | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                    |
+|--------------------------|-----------|----------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case0     | ✔        | ✅               |                                                                                                                                           |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case1     | ✔        | ✅               |                                                                                                                                           |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case2     | ✔        | ✅               |                                                                                                                                           |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case3     | ✔        | ✅               |                                                                                                                                           |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | ✔        | ❌               | expected google_drive_write_file to receive a previous opaque id as input; expected no internal_resource_* tool calls, but some were made |
 
 ### Bielik v3 model
 
@@ -273,6 +291,21 @@ I tested Tool Context Relay with following models
 | Bielik-11b-v3:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
 | Bielik-11b-v3:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
 
+### Deepseek
+
+| Model                  | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                    |
+|------------------------|-----------|----------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| deepseek/deepseek-v3.2 | case0     | -        | ✅               |                                                                                                                                           |
+| deepseek/deepseek-v3.2 | case1     | -        | ✅               |                                                                                                                                           |
+| deepseek/deepseek-v3.2 | case2     | -        | ❌               | expected no internal_resource_* tool calls, but some were made                                                                            |
+| deepseek/deepseek-v3.2 | case3     | -        | ✅               |                                                                                                                                           |
+| deepseek/deepseek-v3.2 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque id as input; expected no internal_resource_* tool calls, but some were made |
+| deepseek/deepseek-v3.2 | case0     | ✔        | ✅               |                                                                                                                                           |
+| deepseek/deepseek-v3.2 | case1     | ✔        | ✅               |                                                                                                                                           |
+| deepseek/deepseek-v3.2 | case2     | ✔        | ✅               |                                                                                                                                           |
+| deepseek/deepseek-v3.2 | case3     | ✔        | ✅               |                                                                                                                                           |
+| deepseek/deepseek-v3.2 | case4     | ✔        | ✅               |                                                                                                                                           |
+
 ## Conclusion (based on test results)
 
 Based on the tables above (limited experiments):
@@ -280,7 +313,7 @@ Based on the tables above (limited experiments):
 - Flagship models like `gpt-4o` and `gpt-5.2` were reliable even without few-shot examples, so a strong “training-style” system prompt may not be strictly required for them in practice.
 - Weaker/smaller models (especially `*-mini` and `qwen-3b`) were noticeably less consistent without extra guidance; for these, few-shot examples improved reliability across all models, especially for the weaker ones.
 - Overall, the Tool Context Relay pattern worked well across all tested models when few-shot examples were provided, demonstrating its effectiveness in managing long tool outputs without overwhelming the model's context. 
-- Few-shot examples likely won’t be necessary for weaker models after fine-tuning on similar tasks, but that’s outside the scope of this demo.
+- Few-shot examples likely won’t be necessary for weaker models after fine-tuning on similar tasks, but that’s outside the scope of this PoC.
 
 ---
 
