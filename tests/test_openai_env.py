@@ -23,6 +23,7 @@ class OpenAIEnvTests(unittest.TestCase):
             "BIELIK_PROVIDER",
             "BIELIK_MODEL",
             "BIELIK_BACKEND_PROVIDER",
+            "BIELIK_TEMPERATURE",
         )
         self._prior: dict[str, str | None] = {key: os.environ.get(key) for key in keys}
         for key in keys:
@@ -72,6 +73,24 @@ class OpenAIEnvTests(unittest.TestCase):
         config = load_profile("bielik")
         self.assertEqual(config.backend_provider, "anthropic")
 
+    def test_load_profile_reads_temperature(self):
+        os.environ["BIELIK_API_KEY"] = "sk-temp"
+        os.environ["BIELIK_TEMPERATURE"] = "0.25"
+        config = load_profile("bielik")
+        self.assertEqual(config.temperature, 0.25)
+
+    def test_load_profile_invalid_temperature_values(self):
+        os.environ["BIELIK_API_KEY"] = "sk-temp"
+        for raw, pattern in (
+            ("not-a-number", r"BIELIK_TEMPERATURE must be a number"),
+            ("NaN", r"BIELIK_TEMPERATURE must be a finite number"),
+            ("3.5", r"BIELIK_TEMPERATURE must be between 0.0 and 2.0"),
+        ):
+            os.environ["BIELIK_TEMPERATURE"] = raw
+            with self.subTest(value=raw):
+                with self.assertRaisesRegex(ValueError, pattern):
+                    load_profile("bielik")
+
     def test_load_profile_reads_compat_api_key_alias(self):
         os.environ["OPENAI_BASE_URL"] = "http://localhost:1234/v1"
         os.environ["OPENAI_COMPAT_API_KEY"] = "sk-compat"
@@ -88,6 +107,7 @@ class OpenAIEnvTests(unittest.TestCase):
             api_key="sk-test",
             default_model="gpt-test",
             backend_provider="openrouter",
+            temperature=None,
         )
         apply_profile(config)
         self.assertEqual(os.environ.get("OPENAI_API_KEY"), "sk-test")

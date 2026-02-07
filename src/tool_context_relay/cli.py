@@ -3,17 +3,18 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
-import math
 import os
+import re
 import sys
 from pathlib import Path
 from textwrap import dedent
-from typing import Any
+from typing import Any, TextIO
 
 from dotenv import load_dotenv
 
 from tool_context_relay.pretty import emit_info, emit_error
 from tool_context_relay.openai_env import ProfileConfig, load_profile
+from tool_context_relay.temperature import ensure_valid_temperature
 from tool_context_relay.testing.prompt_cases import (
     PromptCase,
     expand_wildcard_pattern,
@@ -280,7 +281,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="PATTERN",
-        help="Run prompt(s) from markdown files matched by a glob (e.g. 'prompt_cases/*.md'). Repeatable.",
+        help="Run prompt(s) from markdown files matched by a glob (e.g. 'prompts/*.md'). Repeatable.",
     )
     parser.set_defaults(fewshots=True)
     fewshots_group = parser.add_mutually_exclusive_group()
@@ -432,19 +433,19 @@ def main(argv: list[str] | None = None) -> int:
 
     model_requested: str | None = (args.model or "").strip() or None
     model_source = model_requested or profile_config.default_model or "gpt-4.1-mini"
-    temperature: float | None = args.temperature
+    if args.temperature is not None:
+        try:
+            temperature = ensure_valid_temperature(args.temperature)
+        except ValueError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+    else:
+        temperature = profile_config.temperature
     model = _normalize_model_for_agents(model=model_source)
-    if temperature is not None:
-        if not math.isfinite(temperature):
-            print("Temperature must be a finite number.", file=sys.stderr)
-            return 2
-        if temperature < 0.0 or temperature > 2.0:
-            print("Temperature must be between 0.0 and 2.0.", file=sys.stderr)
-            return 2
 
     if temperature is not None and _is_reasoning_model(model=model):
         emit_info(
-            f"Ignoring --temperature={temperature} because model '{model}' looks like a reasoning model.",
+            f"Ignoring temperature={temperature} because model '{model}' looks like a reasoning model.",
             stream=sys.stdout,
         )
         temperature = None
@@ -698,29 +699,62 @@ def _run_from_files(
             stream=sys.stdout,
         )
 
-    emit_info(f"\n{'=' * 50}", stream=sys.stdout)
-    emit_info("Run summary:", stream=sys.stdout)
-    for result in results:
-        label = result.case_id or str(result.file_path)
-        if result.case_id:
-            label = f"{label} ({result.file_path})"
-
-        if result.status == "passed":
-            emit_info(f"  ✓ {label}", stream=sys.stdout)
-        elif result.status == "no_validation":
-            emit_info(f"  • {label} (no validation)", stream=sys.stdout)
-        elif result.status == "failed":
-            emit_error(f"  ✗ {label}", stream=sys.stderr)
-            for reason in result.reasons:
-                emit_error(f"    - {reason}", stream=sys.stderr)
-        else:
-            emit_error(f"  ✗ {label} ({result.status})", stream=sys.stderr)
-            for reason in result.reasons:
-                emit_error(f"    - {reason}", stream=sys.stderr)
+    print(file=sys.stdout)
+    _print_validation_summary_table(
+        model=model,
+        fewshots=fewshots,
+        results=results,
+        stream=sys.stdout,
+    )
 
     if all_passed:
-        emit_info(f"All {total_files} file(s) passed.", stream=sys.stdout)
+        print(f"All {total_files} file(s) passed.", file=sys.stdout)
         return 0
-    else:
-        emit_error("Some validations failed.", stream=sys.stderr)
-        return 1
+    print("Some validations failed.", file=sys.stderr)
+    return 1
+
+
+def _reason_for_result(result: FileRunResult) -> str:
+    if result.reasons:
+        cleaned = (_strip_tool_call_arguments(reason) for reason in result.reasons)
+        return "; ".join(cleaned)
+    if result.status == "passed":
+        return ""
+    if result.status == "no_validation":
+        return "validation not configured"
+    return result.status
+
+
+def _sanitize_table_cell(value: str) -> str:
+    sanitized = value.replace("\r", " ").replace("\n", " ").replace("|", "\\|")
+    return sanitized.strip()
+
+
+def _strip_tool_call_arguments(value: str) -> str:
+    return re.sub(r",? arguments=.*$", "", value, flags=re.DOTALL)
+
+
+def _print_validation_summary_table(
+    *,
+    model: str,
+    fewshots: bool,
+    results: list[FileRunResult],
+    stream: TextIO | None = None,
+) -> None:
+    resolved_stream = stream or sys.stdout
+    fewshot_symbol = "✔" if fewshots else "-"
+    sanitized_model = _sanitize_table_cell(model)
+    lines: list[str] = []
+    lines.append("| Model | Prompt Id | Few-shot | Resolve success | Reason |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    for result in results:
+        prompt_id = result.case_id or str(result.file_path)
+        reason = _reason_for_result(result)
+        sanitized_prompt_id = _sanitize_table_cell(prompt_id)
+        sanitized_reason = _sanitize_table_cell(reason)
+        resolve_symbol = "✅" if result.status == "passed" else "❌"
+        lines.append(
+            f"| {sanitized_model} | {sanitized_prompt_id} | {fewshot_symbol} | {resolve_symbol} | {sanitized_reason} |"
+        )
+
+    print("\n".join(lines), file=resolved_stream)

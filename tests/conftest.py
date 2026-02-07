@@ -32,7 +32,7 @@ def pytest_generate_tests(metafunc) -> None:
     from tool_context_relay.testing.integration_matrix import build_integration_matrix
 
     repo_root = Path(__file__).resolve().parents[1]
-    prompt_cases_dir = repo_root / "prompt_cases"
+    prompt_cases_dir = repo_root / "prompts"
 
     selected_profile = metafunc.config.getoption("--profile")
     selected_models = metafunc.config.getoption("--model") or []

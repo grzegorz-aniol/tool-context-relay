@@ -15,54 +15,46 @@ integration:
 test-qwen-fewshots:
 	uv run tool-context-relay \
 		--profile qwen \
-		--model Qwen/Qwen3-8B-GGUF:Q8_0 \
 		--no-show-system-instruction \
 		--fewshots \
-		--glob "prompt_cases/*.md"
+		--glob "prompts/*.md"
 
 test-qwen-oneshot:
 	uv run tool-context-relay \
 		--profile qwen \
-		--model Qwen/Qwen3-8B-GGUF:Q8_0 \
 		--no-show-system-instruction \
 		--no-fewshots \
-		--glob "prompt_cases/*.md"
+		--glob "prompts/*.md"
 
 test-json-qwen-oneshot:
 	uv run tool-context-relay \
 		--boxing json \
 		--profile qwen \
-		--model Qwen/Qwen3-8B-GGUF:Q8_0 \
 		--show-system-instruction \
 		--no-fewshots \
-		--glob "prompt_cases/*.md"
+		--glob "prompts/*.md"
 
 test-json-qwen-fewshots:
 	uv run tool-context-relay \
 		--boxing json \
 		--profile qwen \
-		--model Qwen/Qwen3-8B-GGUF:Q8_0 \
 		--show-system-instruction \
 		--fewshots \
-		--glob "prompt_cases/*.md"
+		--glob "prompts/*.md"
 
 test-bielik-fewshots:
 	 uv run tool-context-relay \
 		--profile bielik \
-		--model $(BIELIK_MODEL) \
-		--temperature 0.1 \
 		--no-show-system-instruction \
 		--fewshots \
-		--glob "prompt_cases/*.md"
+		--glob "prompts/*.md"
 
 test-bielik-oneshot:
 	 uv run tool-context-relay \
 		--profile bielik \
-		--model $(BIELIK_MODEL) \
-		--temperature 0.1 \
 		--no-show-system-instruction \
 		--no-fewshots \
-		--glob "prompt_cases/*.md"
+		--glob "prompts/*.md"
 
 test-openai-fewshots:
 	 uv run tool-context-relay \
@@ -70,7 +62,7 @@ test-openai-fewshots:
 		--model $(OPENAI_MODEL) \
 		--no-show-system-instruction \
 		--fewshots \
-		--glob "prompt_cases/*.md"
+		--glob "prompts/*.md"
 
 test-openai-oneshot:
 	 uv run tool-context-relay \
@@ -78,4 +70,4 @@ test-openai-oneshot:
 		--model $(OPENAI_MODEL) \
 		--no-show-system-instruction \
 		--no-fewshots \
-		--glob "prompt_cases/*.md"
+		--glob "prompts/*.md"

@@ -14,7 +14,7 @@ def _write_case(path: Path, *, frontmatter: str, body: str) -> None:
 
 
 def test_load_prompt_cases_parses_frontmatter_and_body(tmp_path: Path) -> None:
-    cases_dir = tmp_path / "prompt_cases"
+    cases_dir = tmp_path / "prompts"
     cases_dir.mkdir()
 
     _write_case(
@@ -46,7 +46,7 @@ expect_internal_resolve: false
 
 
 def test_load_prompt_cases_normalizes_numeric_case_id(tmp_path: Path) -> None:
-    cases_dir = tmp_path / "prompt_cases"
+    cases_dir = tmp_path / "prompts"
     cases_dir.mkdir()
 
     _write_case(cases_dir / "case2.md", frontmatter="id: 2", body="x")
@@ -55,7 +55,7 @@ def test_load_prompt_cases_normalizes_numeric_case_id(tmp_path: Path) -> None:
 
 
 def test_load_prompt_cases_requires_frontmatter(tmp_path: Path) -> None:
-    cases_dir = tmp_path / "prompt_cases"
+    cases_dir = tmp_path / "prompts"
     cases_dir.mkdir()
     (cases_dir / "case1.md").write_text("no frontmatter", encoding="utf-8")
 

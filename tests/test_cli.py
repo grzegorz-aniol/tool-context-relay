@@ -27,6 +27,7 @@ class CliTests(unittest.TestCase):
             "OPENAI_API_BASE",
             "OPENAI_API_KEY",
             "OPENAI_MODEL",
+            "OPENAI_TEMPERATURE",
             "TOOL_CONTEXT_RELAY_PROFILE",
             "LANGFUSE_SECRET_KEY",
             "LANGFUSE_PUBLIC_KEY",
@@ -35,10 +36,12 @@ class CliTests(unittest.TestCase):
             "BIELIK_API_KEY",
             "BIELIK_BASE_URL",
             "BIELIK_MODEL",
+            "BIELIK_TEMPERATURE",
             "QWEN_PROVIDER",
             "QWEN_API_KEY",
             "QWEN_BASE_URL",
             "QWEN_MODEL",
+            "QWEN_TEMPERATURE",
             "QWEN_BACKEND_PROVIDER",
             "OPENROUTER_PROVIDER",
             "OPENROUTER_API_KEY",
@@ -167,6 +170,46 @@ class CliTests(unittest.TestCase):
         self.assertEqual(run_once.call_args.kwargs["boxing_mode"], "opaque")
         self.assertEqual(run_once.call_args.kwargs["profile"], "openai")
 
+    def test_main_uses_profile_temperature_when_no_flag(self):
+        os.environ["BIELIK_API_KEY"] = "sk-bielik"
+        os.environ["BIELIK_TEMPERATURE"] = "0.35"
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch(
+                "tool_context_relay.main.run_once",
+                return_value=("ok", SimpleNamespace(kv={})),
+            ) as run_once,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            code = main(["--profile", "bielik", "--model", "gpt-4.1-mini", "hi"])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(run_once.call_args.kwargs["temperature"], 0.35)
+        self.assertEqual(run_once.call_args.kwargs["profile"], "bielik")
+
+    def test_main_cli_temperature_overrides_profile(self):
+        os.environ["BIELIK_API_KEY"] = "sk-bielik"
+        os.environ["BIELIK_TEMPERATURE"] = "0.35"
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch(
+                "tool_context_relay.main.run_once",
+                return_value=("ok", SimpleNamespace(kv={})),
+            ) as run_once,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            code = main(["--profile", "bielik", "--model", "gpt-4.1-mini", "--temperature", "0.6", "hi"])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(run_once.call_args.kwargs["temperature"], 0.6)
+        self.assertEqual(run_once.call_args.kwargs["profile"], "bielik")
+
     def test_main_passes_boxing_flag_to_runner(self):
         os.environ["OPENAI_API_KEY"] = "sk-compat"
         stdout = io.StringIO()
@@ -201,7 +244,7 @@ class CliTests(unittest.TestCase):
             code = main(["--model", "gpt-5.2", "--temperature", "0.7", "hi"])
 
         self.assertEqual(code, 0)
-        self.assertIn("Ignoring --temperature=0.7", stdout.getvalue())
+        self.assertIn("Ignoring temperature=0.7", stdout.getvalue())
         self.assertEqual(stderr.getvalue(), "")
         self.assertIsNone(run_once.call_args.kwargs["temperature"])
         self.assertEqual(run_once.call_args.kwargs["boxing_mode"], "opaque")
@@ -257,11 +300,11 @@ class CliTests(unittest.TestCase):
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
-            code = main(["prompt_cases/*.md"])
+            code = main(["prompts/*.md"])
 
         self.assertEqual(code, 0)
         self.assertEqual(stderr.getvalue(), "")
-        self.assertEqual(run_once.call_args.kwargs["prompt"], "prompt_cases/*.md")
+        self.assertEqual(run_once.call_args.kwargs["prompt"], "prompts/*.md")
 
     def test_main_rejects_prompt_and_file_flags_together(self):
         stdout = io.StringIO()
@@ -374,15 +417,15 @@ class CliTests(unittest.TestCase):
                     temperature=None,
                     boxing_mode="opaque",
                     dump_context=False,
-                )
+            )
 
             self.assertEqual(code, 1)
-            self.assertIn("Run summary:", stdout.getvalue())
+            self.assertIn("| Model | Prompt Id | Few-shot | Resolve success | Reason |", stdout.getvalue())
             self.assertIn("passcase", stdout.getvalue())
-            self.assertIn("failcase", stderr.getvalue())
+            self.assertIn("failcase", stdout.getvalue())
             self.assertIn("broken.md", stderr.getvalue())
             self.assertIn("tool call sequence mismatch", stderr.getvalue())
-            self.assertIn("missing YAML frontmatter closing delimiter", stderr.getvalue())
+            self.assertIn("missing YAML frontmatter closing", stderr.getvalue())
 
     def test_validate_case_accepts_json_boxed_results(self):
         case = PromptCase(

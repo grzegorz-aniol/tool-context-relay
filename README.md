@@ -355,6 +355,8 @@ Use a specific profile (and its env vars):
 
 `tool-context-relay --profile bielik --model BIELIK "Generate ..."`
 
+Profiles map to <PREFIX>_API_KEY, <PREFIX>_MODEL, and so on, and you can also set `<PREFIX>_TEMPERATURE` (for example `BIELIK_TEMPERATURE=0.1`) to provide a profile-specific default; `--temperature` overrides that value.
+
 Set `TOOL_CONTEXT_RELAY_PROFILE=bielik` to make a profile the default for your shell/session.
 
 `--model` remains available to override the profile’s default model; omit it to rely on the profile default (or the fallback `gpt-4.1-mini`).
@@ -362,6 +364,8 @@ Set `TOOL_CONTEXT_RELAY_PROFILE=bielik` to make a profile the default for your s
 Set sampling temperature (non-reasoning models only):
 
 `tool-context-relay --temperature 0.1 "..."` (ignored for reasoning models like `gpt-5*`)
+
+Profile-level `<PREFIX>_TEMPERATURE` variables are also supported (e.g., `BIELIK_TEMPERATURE=0.1`), but CLI arguments win and reasoning models ignore the sampling temperature entirely.
 
 Control request retries:
 

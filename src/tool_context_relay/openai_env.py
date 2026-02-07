@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import Sequence
 
+from tool_context_relay.temperature import parse_temperature_from_env
+
 
 _BASE_URL_KEYS = ("BASE_URL", "BASEURL", "API_BASE", "ENDPOINT")
 _API_KEY_SUFFIXES = ("API_KEY", "COMPAT_API_KEY")
@@ -47,6 +49,13 @@ def _provider_requires_endpoint(provider: str) -> bool:
     return provider not in {"openai"}
 
 
+def _load_profile_temperature(prefix: str) -> float | None:
+    raw = _getenv_stripped(f"{prefix}_TEMPERATURE")
+    if raw is None:
+        return None
+    return parse_temperature_from_env(raw, label=f"{prefix}_TEMPERATURE")
+
+
 @dataclass(frozen=True)
 class ProfileConfig:
     name: str
@@ -56,6 +65,7 @@ class ProfileConfig:
     api_key: str | None
     default_model: str | None
     backend_provider: str | None
+    temperature: float | None
 
 
 def load_profile(profile: str) -> ProfileConfig:
@@ -82,6 +92,7 @@ def load_profile(profile: str) -> ProfileConfig:
 
     default_model = _getenv_stripped(f"{normalized}_MODEL")
     backend_provider = _getenv_stripped(f"{normalized}_BACKEND_PROVIDER")
+    temperature = _load_profile_temperature(normalized)
 
     return ProfileConfig(
         name=profile,
@@ -91,6 +102,7 @@ def load_profile(profile: str) -> ProfileConfig:
         api_key=api_key,
         default_model=default_model,
         backend_provider=backend_provider,
+        temperature=temperature,
     )
 
 

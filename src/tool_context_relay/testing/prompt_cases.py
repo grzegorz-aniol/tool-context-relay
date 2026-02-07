@@ -176,7 +176,7 @@ def expand_wildcard_pattern(pattern: str, base_dir: Path | None = None) -> list[
     """Expand a wildcard pattern to a list of file paths.
 
     Args:
-        pattern: A glob pattern like "*.md", "prompt_cases/*.md", "case*.md"
+        pattern: A glob pattern like "*.md", "prompts/*.md", "case*.md"
         base_dir: Optional base directory to resolve relative patterns against
 
     Returns:

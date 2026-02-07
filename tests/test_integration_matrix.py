@@ -8,7 +8,7 @@ def _write_case(path: Path, *, frontmatter: str, body: str) -> None:
 
 
 def test_build_integration_matrix_model_override_for_profile(tmp_path: Path) -> None:
-    cases_dir = tmp_path / "prompt_cases"
+    cases_dir = tmp_path / "prompts"
     cases_dir.mkdir()
 
     _write_case(
@@ -41,7 +41,7 @@ expect_internal_resolve: false
 
 
 def test_build_integration_matrix_model_all_disables_override(tmp_path: Path) -> None:
-    cases_dir = tmp_path / "prompt_cases"
+    cases_dir = tmp_path / "prompts"
     cases_dir.mkdir()
     _write_case(cases_dir / "case1.md", frontmatter="id: case1", body="hello")
 
@@ -57,7 +57,7 @@ def test_build_integration_matrix_model_all_disables_override(tmp_path: Path) ->
 
 
 def test_build_integration_matrix_prompt_case_filter(tmp_path: Path) -> None:
-    cases_dir = tmp_path / "prompt_cases"
+    cases_dir = tmp_path / "prompts"
     cases_dir.mkdir()
     _write_case(cases_dir / "case1.md", frontmatter="id: case1", body="a")
     _write_case(cases_dir / "case2.md", frontmatter="id: case2", body="b")
