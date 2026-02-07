@@ -12,18 +12,20 @@ ci:
 integration:
 	uv run python -m pytest -m integration -v tests/integration/
 
-test-qwen-fewshots:
-	uv run tool-context-relay \
-		--profile qwen \
-		--no-show-system-instruction \
-		--fewshots \
-		--glob "prompts/*.md"
+# ------------- QWEN --------------
 
 test-qwen-oneshot:
 	uv run tool-context-relay \
 		--profile qwen \
 		--no-show-system-instruction \
 		--no-fewshots \
+		--glob "prompts/*.md"
+
+test-qwen-fewshots:
+	uv run tool-context-relay \
+		--profile qwen \
+		--no-show-system-instruction \
+		--fewshots \
 		--glob "prompts/*.md"
 
 test-json-qwen-oneshot:
@@ -42,6 +44,8 @@ test-json-qwen-fewshots:
 		--fewshots \
 		--glob "prompts/*.md"
 
+# ------------- BIELIK --------------
+
 test-bielik-fewshots:
 	 uv run tool-context-relay \
 		--profile bielik \
@@ -55,6 +59,8 @@ test-bielik-oneshot:
 		--no-show-system-instruction \
 		--no-fewshots \
 		--glob "prompts/*.md"
+
+# ------------- OPENAI --------------
 
 test-openai-fewshots:
 	 uv run tool-context-relay \
