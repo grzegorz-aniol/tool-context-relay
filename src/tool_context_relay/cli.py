@@ -81,6 +81,7 @@ def _format_startup_config_line(
     endpoint: str | None,
     temperature: float | None,
     boxing_mode: BoxingMode,
+    is_fewshot: bool,
 ) -> str:
     parts: list[str] = ["Config used:"]
 
@@ -98,6 +99,7 @@ def _format_startup_config_line(
     if temperature is not None:
         parts.append(f"* temperature={temperature}")
     parts.append(f"* boxing={boxing_mode}")
+    parts.append(f"* few-shots={'enabled' if is_fewshot else 'disabled'}")
 
     return "\n".join(parts)
 
@@ -461,6 +463,7 @@ def main(argv: list[str] | None = None) -> int:
         endpoint=profile_config.endpoint,
         temperature=temperature,
         boxing_mode=args.boxing,
+        is_fewshot=args.fewshots,
     )
     emit_info(config_line, stream=sys.stdout)
 
@@ -699,12 +702,15 @@ def _run_from_files(
             stream=sys.stdout,
         )
 
-    print(file=sys.stdout)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    print(file=sys.stderr)
+    print("\x1b[0m", file=sys.stderr, end="")
     _print_validation_summary_table(
         model=model,
         fewshots=fewshots,
         results=results,
-        stream=sys.stdout,
+        stream=sys.stderr,
     )
 
     if all_passed:

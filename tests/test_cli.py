@@ -75,6 +75,7 @@ class CliTests(unittest.TestCase):
             endpoint="http://127.0.0.1:1234/v1",
             temperature=0.1,
             boxing_mode="opaque",
+            is_fewshot=True,
         )
         self.assertIn("profile=bielik", line)
         self.assertIn("provider=openai-compat", line)
@@ -421,12 +422,12 @@ class CliTests(unittest.TestCase):
             )
 
             self.assertEqual(code, 1)
-            self.assertIn("| Model | Prompt Id | Few-shot | Resolve success | Reason |", stdout.getvalue())
-            self.assertIn("passcase", stdout.getvalue())
-            self.assertIn("failcase", stdout.getvalue())
+            self.assertIn("| Model | Prompt Id | Few-shot | Resolve success | Reason |", stderr.getvalue())
+            self.assertIn("passcase", stderr.getvalue())
+            self.assertIn("failcase", stderr.getvalue())
             self.assertIn("broken.md", stderr.getvalue())
-        self.assertIn("tool call sequence mismatch", stderr.getvalue())
-        self.assertIn("missing YAML frontmatter closing", stderr.getvalue())
+            self.assertIn("tool call sequence mismatch", stderr.getvalue())
+            self.assertIn("missing YAML frontmatter closing", stderr.getvalue())
 
     def test_reason_for_result_truncates_to_first_clause(self):
         result = FileRunResult(
