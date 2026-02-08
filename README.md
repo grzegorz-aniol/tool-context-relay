@@ -170,141 +170,138 @@ I tested Tool Context Relay with following models
 
 ### OpenAI GPT models
 
-| Model       | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|-------------|-----------|----------------------------------------|----------|-----------------|
-| gpt-4o-mini | 0         | No boxing                              | -        | ✅               |
-| gpt-4o-mini | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
-| gpt-4o-mini | 2         | Box + route → Drive                    | -        | ❌               |
-| gpt-4o-mini | 3         | Box + slice tail detail (no full read) | -        | ✅               |
-| gpt-4o-mini | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
-| gpt-4o-mini | 0         | No boxing                              | ✔        | ✅               |
-| gpt-4o-mini | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| gpt-4o-mini | 2         | Box + route → Drive                    | ✔        | ✅               |
-| gpt-4o-mini | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
-| gpt-4o-mini | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+| Model       | Prompt Id | Few-shot | Resolve success |
+|-------------|-----------|----------|-----------------|
+| gpt-4o-mini | 0         | -        | ✅               |
+| gpt-4o-mini | 1         | -        | ✅               |
+| gpt-4o-mini | 2         | -        | ❌               |
+| gpt-4o-mini | 3         | -        | ✅               |
+| gpt-4o-mini | 4         | -        | ❌               |
+| gpt-4o-mini | 0         | ✔        | ✅               |
+| gpt-4o-mini | 1         | ✔        | ✅               |
+| gpt-4o-mini | 2         | ✔        | ✅               |
+| gpt-4o-mini | 3         | ✔        | ✅               |
+| gpt-4o-mini | 4         | ✔        | ✅               |
  
 
-| Model       | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|-------------|-----------|----------------------------------------|----------|-----------------|
-| gpt-4o      | 0         | No boxing                              | -        | ✅               |
-| gpt-4o      | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
-| gpt-4o      | 2         | Box + route → Drive                    | -        | ✅               |
-| gpt-4o      | 3         | Box + slice tail detail (no full read) | -        | ✅               |
-| gpt-4o      | 4         | Box + `deep_check` + save both outputs | -        | ✅               |
-| gpt-4o      | 0         | No boxing                              | ✔        | ✅               |
-| gpt-4o      | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| gpt-4o      | 2         | Box + route → Drive                    | ✔        | ✅               |
-| gpt-4o      | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
-| gpt-4o      | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+| Model       | Prompt Id | Few-shot | Resolve success |
+|-------------|-----------|----------|-----------------|
+| gpt-4o      | 0         | -        | ✅               |
+| gpt-4o      | 1         | -        | ✅               |
+| gpt-4o      | 2         | -        | ✅               |
+| gpt-4o      | 3         | -        | ✅               |
+| gpt-4o      | 4         | -        | ✅               |
+| gpt-4o      | 0         | ✔        | ✅               |
+| gpt-4o      | 1         | ✔        | ✅               |
+| gpt-4o      | 2         | ✔        | ✅               |
+| gpt-4o      | 3         | ✔        | ✅               |
+| gpt-4o      | 4         | ✔        | ✅               |
  
 
-| Model      | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|------------|-----------|----------------------------------------|----------|-----------------|
-| gpt-5-mini | 0         | No boxing                              | -        | ✅               |
-| gpt-5-mini | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
-| gpt-5-mini | 2         | Box + route → Drive                    | -        | ❌               |
-| gpt-5-mini | 3         | Box + slice tail detail (no full read) | -        | ✅               |
-| gpt-5-mini | 4         | Box + `deep_check` + save both outputs | -        | ✅               |
-| gpt-5-mini | 0         | No boxing                              | ✔        | ✅               |
-| gpt-5-mini | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| gpt-5-mini | 2         | Box + route → Drive                    | ✔        | ✅               |
-| gpt-5-mini | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
-| gpt-5-mini | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+| Model      | Prompt Id | Few-shot | Resolve success |
+|------------|-----------|----------|-----------------|
+| gpt-5-mini | 0         | -        | ✅               |
+| gpt-5-mini | 1         | -        | ✅               |
+| gpt-5-mini | 2         | -        | ❌               |
+| gpt-5-mini | 3         | -        | ✅               |
+| gpt-5-mini | 4         | -        | ✅               |
+| gpt-5-mini | 0         | ✔        | ✅               |
+| gpt-5-mini | 1         | ✔        | ✅               |
+| gpt-5-mini | 2         | ✔        | ✅               |
+| gpt-5-mini | 3         | ✔        | ✅               |
+| gpt-5-mini | 4         | ✔        | ✅               |
 
 
-| Model   | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|---------|-----------|----------------------------------------|----------|-----------------|
-| gpt-5.2 | 0         | No boxing                              | -        | ✅               |
-| gpt-5.2 | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
-| gpt-5.2 | 2         | Box + route → Drive                    | -        | ✅               |
-| gpt-5.2 | 3         | Box + slice tail detail (no full read) | -        | ✅               |
-| gpt-5.2 | 4         | Box + `deep_check` + save both outputs | -        | ✅               |
-| gpt-5.2 | 0         | No boxing                              | ✔        | ✅               |
-| gpt-5.2 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| gpt-5.2 | 2         | Box + route → Drive                    | ✔        | ✅               |
-| gpt-5.2 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
-| gpt-5.2 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+| Model   | Prompt Id | Few-shot | Resolve success |
+|---------|-----------|----------|-----------------|
+| gpt-5.2 | 0         | -        | ✅               |
+| gpt-5.2 | 1         | -        | ✅               |
+| gpt-5.2 | 2         | -        | ✅               |
+| gpt-5.2 | 3         | -        | ✅               |
+| gpt-5.2 | 4         | -        | ✅               |
+| gpt-5.2 | 0         | ✔        | ✅               |
+| gpt-5.2 | 1         | ✔        | ✅               |
+| gpt-5.2 | 2         | ✔        | ✅               |
+| gpt-5.2 | 3         | ✔        | ✅               |
+| gpt-5.2 | 4         | ✔        | ✅               |
 
 ### Qwen 3 model
 
 #### Boxing method: opaque reference (default)
 
- | Model         | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|---------------|-----------|----------------------------------------|----------|-----------------|
-| qwen3-8b:Q8_0 | 0         | No boxing                              | -        | ✅               |
-| qwen3-8b:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ❌               |
-| qwen3-8b:Q8_0 | 2         | Box + route → Drive                    | -        | ✅               |
-| qwen3-8b:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ❌               |
-| qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
-| qwen3-8b:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
-
-#### Boxing method: JSON
-
- | Model         | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|---------------|-----------|----------------------------------------|----------|-----------------|
-| qwen3-8b:Q8_0 | 0         | No boxing                              | -        | ✅               |
-| qwen3-8b:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ❌               |
-| qwen3-8b:Q8_0 | 2         | Box + route → Drive                    | -        | ❌               |
-| qwen3-8b:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ✅               |
-| qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
-| qwen3-8b:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ❌               |
-| qwen3-8b:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+ | Model         | Prompt Id | Few-shot | Resolve success |
+|---------------|-----------|----------|-----------------|
+| qwen3-8b:Q8_0 | 0         | -        | ✅               |
+| qwen3-8b:Q8_0 | 1         | -        | ❌               |
+| qwen3-8b:Q8_0 | 2         | -        | ✅               |
+| qwen3-8b:Q8_0 | 3         | -        | ❌               |
+| qwen3-8b:Q8_0 | 4         | -        | ❌               |
+| qwen3-8b:Q8_0 | 0         | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 1         | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 2         | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 3         | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 4         | ✔        | ✅               |
 
 
-| Model               | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                           |
-|---------------------|-----------|----------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| Qwen/Qwen3-14B:Q8_0 | case0     | -        | ✅               |                                                                                                                                                  |
-| Qwen/Qwen3-14B:Q8_0 | case1     | -        | ✅               |                                                                                                                                                  |
-| Qwen/Qwen3-14B:Q8_0 | case2     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
-| Qwen/Qwen3-14B:Q8_0 | case3     | -        | ❌               | expected deep_check to receive a previous opaque reference as input                                                                              |
-| Qwen/Qwen3-14B:Q8_0 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
+| Model               | Prompt Id | Few-shot | Resolve success |
+|---------------------|-----------|----------|-----------------|
+| Qwen/Qwen3-14B:Q8_0 | case0     | -        | ✅               |
+| Qwen/Qwen3-14B:Q8_0 | case1     | -        | ✅               |
+| Qwen/Qwen3-14B:Q8_0 | case2     | -        | ❌               |
+| Qwen/Qwen3-14B:Q8_0 | case3     | -        | ❌               |
+| Qwen/Qwen3-14B:Q8_0 | case4     | -        | ❌               |
+| Qwen/Qwen3-14B:Q8_0 | case0     | ✔        | ✅               |
+| Qwen/Qwen3-14B:Q8_0 | case1     | ✔        | ✅               |
+| Qwen/Qwen3-14B:Q8_0 | case2     | ✔        | ✅               |
+| Qwen/Qwen3-14B:Q8_0 | case3     | ✔        | ✅               |
+| Qwen/Qwen3-14B:Q8_0 | case4     | ✔        | ❌               |
 
+#### Alternative boxing method: JSON
 
-| Model               | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                           |
-|---------------------|-----------|----------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| Qwen/Qwen3-14B:Q8_0 | case0     | ✔        | ✅               |                                                                                                                                                  |
-| Qwen/Qwen3-14B:Q8_0 | case1     | ✔        | ✅               |                                                                                                                                                  |
-| Qwen/Qwen3-14B:Q8_0 | case2     | ✔        | ✅               |                                                                                                                                                  |
-| Qwen/Qwen3-14B:Q8_0 | case3     | ✔        | ✅               |                                                                                                                                                  |
-| Qwen/Qwen3-14B:Q8_0 | case4     | ✔        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
+ | Model         | Prompt Id | Few-shot | Resolve success |
+|---------------|-----------|----------|-----------------|
+| qwen3-8b:Q8_0 | 0         | -        | ✅               |
+| qwen3-8b:Q8_0 | 1         | -        | ❌               |
+| qwen3-8b:Q8_0 | 2         | -        | ❌               |
+| qwen3-8b:Q8_0 | 3         | -        | ✅               |
+| qwen3-8b:Q8_0 | 4         | -        | ❌               |
+| qwen3-8b:Q8_0 | 0         | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 1         | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 2         | ✔        | ✅               |
+| qwen3-8b:Q8_0 | 3         | ✔        | ❌               |
+| qwen3-8b:Q8_0 | 4         | ✔        | ✅               |
+
 
 ### Bielik v3 model
 
 
- | Model              | Prompt Id | Prompt (short)                         | Few-shot | Resolve success |
-|--------------------|-----------|----------------------------------------|----------|-----------------|
-| Bielik-11b-v3:Q8_0 | 0         | No boxing                              | -        | ✅               |
-| Bielik-11b-v3:Q8_0 | 1         | Box + pass-through → `deep_check`      | -        | ✅               |
-| Bielik-11b-v3:Q8_0 | 2         | Box + route → Drive                    | -        | ✅               |
-| Bielik-11b-v3:Q8_0 | 3         | Box + slice tail detail (no full read) | -        | ❌               |
-| Bielik-11b-v3:Q8_0 | 4         | Box + `deep_check` + save both outputs | -        | ❌               |
-| Bielik-11b-v3:Q8_0 | 0         | No boxing                              | ✔        | ✅               |
-| Bielik-11b-v3:Q8_0 | 1         | Box + pass-through → `deep_check`      | ✔        | ✅               |
-| Bielik-11b-v3:Q8_0 | 2         | Box + route → Drive                    | ✔        | ✅               |
-| Bielik-11b-v3:Q8_0 | 3         | Box + slice tail detail (no full read) | ✔        | ❌               |
-| Bielik-11b-v3:Q8_0 | 4         | Box + `deep_check` + save both outputs | ✔        | ✅               |
+ | Model              | Prompt Id | Few-shot | Resolve success |
+|--------------------|-----------|----------|-----------------|
+| Bielik-11b-v3:Q8_0 | 0         | -        | ✅               |
+| Bielik-11b-v3:Q8_0 | 1         | -        | ✅               |
+| Bielik-11b-v3:Q8_0 | 2         | -        | ✅               |
+| Bielik-11b-v3:Q8_0 | 3         | -        | ❌               |
+| Bielik-11b-v3:Q8_0 | 4         | -        | ❌               |
+| Bielik-11b-v3:Q8_0 | 0         | ✔        | ✅               |
+| Bielik-11b-v3:Q8_0 | 1         | ✔        | ✅               |
+| Bielik-11b-v3:Q8_0 | 2         | ✔        | ✅               |
+| Bielik-11b-v3:Q8_0 | 3         | ✔        | ❌               |
+| Bielik-11b-v3:Q8_0 | 4         | ✔        | ✅               |
 
 ### Deepseek
 
-| Model         | Prompt Id | Few-shot | Resolve success | Reason                                                                                                                                           |
-|---------------|-----------|----------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| deepseek-v3.2 | case0     | -        | ✅               |                                                                                                                                                  |
-| deepseek-v3.2 | case1     | -        | ✅               |                                                                                                                                                  |
-| deepseek-v3.2 | case2     | -        | ❌               | expected no internal_resource_* tool calls, but some were made                                                                                   |
-| deepseek-v3.2 | case3     | -        | ✅               |                                                                                                                                                  |
-| deepseek-v3.2 | case4     | -        | ❌               | expected google_drive_write_file to receive a previous opaque reference as input; expected no internal_resource_* tool calls, but some were made |
-| deepseek-v3.2 | case0     | ✔        | ✅               |                                                                                                                                                  |
-| deepseek-v3.2 | case1     | ✔        | ✅               |                                                                                                                                                  |
-| deepseek-v3.2 | case2     | ✔        | ✅               |                                                                                                                                                  |
-| deepseek-v3.2 | case3     | ✔        | ✅               |                                                                                                                                                  |
-| deepseek-v3.2 | case4     | ✔        | ✅               |                                                                                                                                                  |
+| Model         | Prompt Id | Few-shot | Resolve success |
+|---------------|-----------|----------|-----------------|
+| deepseek-v3.2 | case0     | -        | ✅               |
+| deepseek-v3.2 | case1     | -        | ✅               |
+| deepseek-v3.2 | case2     | -        | ❌               |
+| deepseek-v3.2 | case3     | -        | ✅               |
+| deepseek-v3.2 | case4     | -        | ❌               |
+| deepseek-v3.2 | case0     | ✔        | ✅               |
+| deepseek-v3.2 | case1     | ✔        | ✅               |
+| deepseek-v3.2 | case2     | ✔        | ✅               |
+| deepseek-v3.2 | case3     | ✔        | ✅               |
+| deepseek-v3.2 | case4     | ✔        | ✅               |
 
 ## Conclusion (based on test results)
 

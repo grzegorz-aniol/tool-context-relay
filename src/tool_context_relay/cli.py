@@ -4,7 +4,6 @@ import argparse
 from dataclasses import dataclass
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from textwrap import dedent
@@ -720,37 +719,10 @@ def _run_from_files(
         return 0
     print("Some validations failed.", file=sys.stderr)
     return 1
-
-
-def _reason_for_result(result: FileRunResult) -> str:
-    if result.reasons:
-        cleaned = (
-            _truncate_reason_clause(_strip_tool_call_arguments(reason))
-            for reason in result.reasons
-        )
-        return "; ".join(cleaned)
-    if result.status == "passed":
-        return ""
-    if result.status == "no_validation":
-        return "?"
-    return result.status
-
-
+# Removed reason helpers since table no longer needs the column.
 def _sanitize_table_cell(value: str) -> str:
     sanitized = value.replace("\r", " ").replace("\n", " ").replace("|", "\\|")
     return sanitized.strip()
-
-
-def _strip_tool_call_arguments(value: str) -> str:
-    return re.sub(r",? arguments=.*$", "", value, flags=re.DOTALL)
-
-
-def _truncate_reason_clause(value: str) -> str:
-    trimmed = value.strip()
-    if not trimmed:
-        return ""
-    clause, _, _ = trimmed.partition(";")
-    return clause.strip()
 
 
 def _print_validation_summary_table(
@@ -764,16 +736,14 @@ def _print_validation_summary_table(
     fewshot_symbol = "✔" if fewshots else "-"
     sanitized_model = _sanitize_table_cell(model)
     lines: list[str] = []
-    lines.append("| Model | Prompt Id | Few-shot | Resolve success | Reason |")
-    lines.append("| --- | --- | --- | --- | --- |")
+    lines.append("| Model | Prompt Id | Few-shot | Resolve success |")
+    lines.append("| --- | --- | --- | --- |")
     for result in results:
         prompt_id = result.case_id or str(result.file_path)
-        reason = _reason_for_result(result)
         sanitized_prompt_id = _sanitize_table_cell(prompt_id)
-        sanitized_reason = _sanitize_table_cell(reason)
         resolve_symbol = "✅" if result.status == "passed" else "❌"
         lines.append(
-            f"| {sanitized_model} | {sanitized_prompt_id} | {fewshot_symbol} | {resolve_symbol} | {sanitized_reason} |"
+            f"| {sanitized_model} | {sanitized_prompt_id} | {fewshot_symbol} | {resolve_symbol} |"
         )
 
     print("\n".join(lines), file=resolved_stream)
