@@ -84,6 +84,7 @@ def test_internal_resource_tools_resolve_boxed_values() -> None:
     assert internal_resource_length(None, resource_id) == str(len(value))
     assert internal_resource_read(None, resource_id) == value
     assert internal_resource_read_slice(None, resource_id, 10, 5) == value[10:15]
+    assert internal_resource_read_slice(None, resource_id, -1, 1) == value[-1:]
 
 
 def test_internal_resource_tools_accept_json_boxing() -> None:
@@ -100,3 +101,4 @@ def test_internal_resource_tools_accept_json_boxing() -> None:
     assert internal_resource_length(None, boxed) == str(len(value))
     assert internal_resource_read(None, boxed) == value
     assert internal_resource_read_slice(None, boxed, 10, 5) == value[10:15]
+    assert internal_resource_read_slice(None, boxed, -1, 1) == value[-1:]

@@ -18,6 +18,7 @@ SPEC = BoxingModeSpec(
         - Never invent opaque references. Use only those returned by tools.
         - Do not resolve an opaque reference just to re-send it to another tool, all tools support receiving opaque references directly.
         - If you need just part of the underlying text: prefer `internal_resource_length` plus `internal_resource_read_slice` to fetch only that segment
+        - `internal_resource_read_slice` accepts negative start indices (Python-style) to count from the end.
         - Resolve an opaque reference only if strictly necessary, e.g.:
           * If slicing still leaves you short or the user demands the full text.
           * The user explicitly asks you to display or quote the literal underlying text.
@@ -86,7 +87,7 @@ SPEC = BoxingModeSpec(
 
             Args:
                 opaque_reference (str): JSON string like `{"type":"resource_link","uri":"internal://<id>"}`.
-                start_index (int): Zero-based start index.
+                start_index (int): Zero-based start index (negative counts from end).
                 length (int): Number of characters to return.
             Returns:
                 str: The resolved slice.

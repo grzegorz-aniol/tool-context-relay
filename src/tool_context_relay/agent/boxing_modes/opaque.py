@@ -17,6 +17,9 @@ SPEC = BoxingModeSpec(
         - Never invent opaque references. Use only those returned by tools.
         - Do not resolve an opaque reference just to re-send it to another tool, all tools support receiving opaque references directly.
         - If you need just part of the underlying text: prefer `internal_resource_length` plus `internal_resource_read_slice` to fetch only that segment
+        - If the user asks you to pass data to another tool (e.g., analyze, save, summarize), do that with the opaque reference first; resolve only if a tool refuses opaque input.
+        - Do not guess missing data. If a slice is empty or insufficient, re-check length and adjust indices.
+        - `internal_resource_read_slice` accepts negative start indices (Python-style) to count from the end.
         - Resolve an opaque reference only if strictly necessary, e.g.:
           * If slicing still leaves you short or the user demands the full text.
           * The user explicitly asks you to display or quote the literal underlying text.
@@ -54,6 +57,13 @@ SPEC = BoxingModeSpec(
           Tool result: internal://abc
           Assistant: call the write-file tool with file_content='internal://abc', file_name='report.txt' (pass through unchanged)
 
+        - Multi-step request, keep tool order:
+          User: Generate text, run the analysis tool on it, then answer a question about the text.
+          Assistant: call the generation tool
+          Tool result: internal://abc
+          Assistant: call the analysis tool with text='internal://abc' (pass through unchanged)
+          Assistant: if needed, call `internal_resource_length` and `internal_resource_read_slice` to inspect the text, then answer
+
         - When resolving is allowed:
           User: Quote the first 200 characters of the retrieved data.
           Assistant: call the retrieval tool
@@ -61,6 +71,10 @@ SPEC = BoxingModeSpec(
           Assistant: call `internal_resource_read_slice` with opaque_reference='internal://abc', start_index=0, length=200
           Tool result: "<excerpt>"
           Assistant: output the excerpt
+
+        - Tail slicing (negative index):
+          Tool result: internal://abc
+          Assistant: call `internal_resource_read_slice` with opaque_reference='internal://abc', start_index=-100, length=100
 
         - Large value chunking:
           Tool result: internal://abc
@@ -85,7 +99,7 @@ SPEC = BoxingModeSpec(
 
             Args:
                 opaque_reference (str): Opaque reference string like `internal://<id>`.
-                start_index (int): Zero-based start index.
+                start_index (int): Zero-based start index (negative counts from end).
                 length (int): Number of characters to return.
             Returns:
                 str: The resolved slice.

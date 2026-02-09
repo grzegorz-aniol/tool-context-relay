@@ -73,11 +73,18 @@ def internal_resource_read_slice(
     start_index: int,
     length: int,
 ) -> str:
-    """Resolve and return just a slice of an opaque reference."""
+    """Resolve and return just a slice of an opaque reference.
+
+    Supports negative start indices (Python-style) to count from the end.
+    """
     if not is_resource_id(opaque_reference):
         return f"Value {opaque_reference!r} is not a valid opaque reference"
-    value = unbox_value(opaque_reference)[start_index : start_index + length]
-    return value
+    value = unbox_value(opaque_reference)
+    start = start_index
+    if start_index < 0:
+        start = max(len(value) + start_index, 0)
+    end = start + length
+    return value[start:end]
 
 
 def internal_resource_length(ctx: RunContextWrapper[RelayContext], opaque_reference: str) -> str:
