@@ -324,7 +324,7 @@ Requires **Python 3.14+**.
 
 - **Providers:** define one block per backend using uppercase prefixes (`OPENAI`, `OPENROUTER`, `LOCAL`). Each block can set `_API_KEY`/`_COMPAT_API_KEY`, `_MODEL`, `_BASE_URL`/`_BASEURL`/`_API_BASE`/`_ENDPOINT` (required for non-OpenAI providers), and `_BACKEND_PROVIDER`.
 - **Profiles:** the CLI looks for `<PROFILE>_PROVIDER`, `<PROFILE>_MODEL`, `<PROFILE>_TEMPERATURE`, and `<PROFILE>_BACKEND_PROVIDER`. Profile names are case-insensitive (e.g., `deepseek` matches `DEEPSEEK_...`). Set `TOOL_CONTEXT_RELAY_PROFILE` or `--profile` to choose the active profile; the default is `openai`.
-- **OpenRouter extras:** requests that target the `OPENROUTER` provider automatically add `provider.allow_fallbacks=false` and `provider.data_collection=deny`. Use `<PROVIDER>_BACKEND_PROVIDER` to choose a downstream backend (e.g., `OPENROUTER_BACKEND_PROVIDER=atlas-cloud/fp8`).
+- **OpenRouter extras:** requests that target the `OPENROUTER` provider automatically add `provider.allow_fallbacks=false` and `provider.data_collection=deny`. Use `<PROFILE>_BACKEND_PROVIDER` to choose a downstream backend (e.g., `DEEPSEEK_BACKEND_PROVIDER=atlas-cloud/fp8`).
 
 Simple `.env` example covering the three supported providers:
 
