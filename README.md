@@ -164,11 +164,34 @@ Intended behavior (the prompt asks for this):
 
 ## Test results
 
+<style>
+.foo table {
+    width: 50%;
+    border-collapse: collapse;
+}
+.foo table th:first-of-type {
+    width: 30%;
+}
+.foo table th:nth-of-type(2) {
+    width: 10%;
+}
+.foo table th:nth-of-type(3) {
+    width: 10%;
+}
+.foo table th:nth-of-type(4) {
+    width: 20%;
+}
+</style>
+
 I experimented with a few models to verify the concept. I tried both strong and older/weaker models, to see how well they follow the opaque reference handling instructions. I tested with a few additional few-shot examples (default CLI argument) and zero-shot prompts.
 
 I tested Tool Context Relay with following models
 
 ### OpenAI GPT models
+
+
+
+<div class="foo">
 
 | Model       | Prompt Id | Few-shot | Resolve success |
 |-------------|-----------|----------|-----------------|
@@ -229,7 +252,7 @@ I tested Tool Context Relay with following models
 
 #### Boxing method: opaque reference (default)
 
- | Model         | Prompt Id | Few-shot | Resolve success |
+| Model         | Prompt Id | Few-shot | Resolve success |
 |---------------|-----------|----------|-----------------|
 | qwen3-8b:Q8_0 | 0         | -        | ✅               |
 | qwen3-8b:Q8_0 | 1         | -        | ❌               |
@@ -302,6 +325,9 @@ I tested Tool Context Relay with following models
 | deepseek-v3.2 | case2     | ✔        | ✅               |
 | deepseek-v3.2 | case3     | ✔        | ✅               |
 | deepseek-v3.2 | case4     | ✔        | ✅               |
+
+
+</div>
 
 ## Conclusion (based on test results)
 
