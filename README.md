@@ -320,29 +320,49 @@ Based on the tables above (limited experiments):
 
 Requires **Python 3.14+**.
 
-`tool-context-relay` discovers credentials via **profiles**. Each profile is identified by a case-insensitive name
-and looks for env vars that share that name as a prefix (e.g. prefix `OPENAI` looks for `OPENAI_API_KEY`, `OPENAI_MODEL`,
-`OPENAI_BASE_URL`, `OPENAI_PROVIDER`, etc.). The CLI defaults to profile `openai` unless you pass `--profile` or set
-`TOOL_CONTEXT_RELAY_PROFILE`. In practice you can wire up multiple profiles in a single `.env` file and switch between them.
+### Providers configuration
 
-`.env.example` lists the placeholders you can fill for the built-in profiles (openai, bielik, qwen). A minimal setup may look like:
+Setup in your `.env`
 
 ```sh
-OPENAI_API_KEY="sk-your-openai-key"
-OPENAI_MODEL="gpt-4.1-mini"
+OPENAI_API_KEY=sk-proj-.............
+OPENAI_BASE_URL=https://api.openai.com/v1
 
-BIELIK_PROVIDER="openai-compat"
-BIELIK_API_KEY="sk-your-bielik-key"
-BIELIK_BASE_URL="http://127.0.0.1:1234/v1"
-BIELIK_MODEL="speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q8_0.gguf"
+OPENROUTER_API_KEY=sk-..............
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 
-QWEN_PROVIDER="openai-compat"
-QWEN_API_KEY="sk-your-qwen-key"
-QWEN_BASE_URL="http://127.0.0.1:1234/v1"
-QWEN_MODEL="Qwen/Qwen3-8B-GGUF:Q8_0"
+LLAMACPP_API_KEY=EMPTY
+LLAMACPP_BASE_URL=http://127.0.0.1:1234/v1
 ```
 
-When a profile does not specify `*_PROVIDER`, it defaults to using the `openai` provider definition. `*_PROVIDER` now simply names the provider (e.g. `openrouter`, `llamacpp`, `openai`) so you can configure each target once and have every profile reuse it. You can optionally pin which downstream backend should run the requested model by setting `<PREFIX>_BACKEND_PROVIDER` (for example `OPENROUTER_BACKEND_PROVIDER=anthropic`). The `openrouter` provider always receives `provider.allow_fallbacks=false` plus `provider.data_collection=deny` so it never falls back to OpenAI nor collects telemetry.
+### Profile configuration
+
+Example of models setup in your `.env`:
+
+```sh
+# GPT models OpenAI (default profile)
+OPENAI_PROVIDER=openai
+OPENAI_MODEL=gpt-4o-mini
+
+# Bielik (OpenAI-compatible server)
+BIELIK_PROVIDER=llamacpp
+BIELIK_MODEL=speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q8_0.gguf
+BIELIK_TEMPERATURE=0.1
+
+# Qwen (OpenAI-compatible server)
+QWEN_PROVIDER=llamacpp
+QWEN_MODEL=Qwen/Qwen3-8B-GGUF:Q8_0
+QWEN_TEMPERATURE=0.1
+
+QWEN14B_PROVIDER=llamacpp
+QWEN14B_MODEL=Qwen/Qwen3-14B-GGUF:Q8_0
+QWEN14B_TEMPERATURE=0.1
+
+# Deepseek models
+DEEPSEEK_PROVIDER=openrouter
+DEEPSEEK_MODEL=deepseek/deepseek-v3.2
+DEEPSEEK_BACKEND_PROVIDER=atlas-cloud/fp8
+```
 
 Install dependencies (needs network access):
 
