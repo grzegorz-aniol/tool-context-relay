@@ -10,6 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from tool_context_relay.agent import build_agent
 from tool_context_relay.tools.google_drive import fun_write_file_to_google_drive
 from tool_context_relay.tools.mcp_deepcheck import fun_deep_check
+from tool_context_relay.tools.mcp_email import fun_send_email
+from tool_context_relay.tools.mcp_img_description import fun_get_img_description
+from tool_context_relay.tools.mcp_page import fun_get_page
+from tool_context_relay.tools.mcp_web_screenshot import fun_get_web_screenshot
 from tool_context_relay.tools.mcp_yt import fun_get_transcript
 
 
@@ -62,6 +66,10 @@ class AgentTests(unittest.TestCase):
             ("yt_transcribe", fun_get_transcript),
             ("deep_check", fun_deep_check),
             ("google_drive_write_file", fun_write_file_to_google_drive),
+            ("get_page", fun_get_page),
+            ("send_email", fun_send_email),
+            ("get_web_screenshot", fun_get_web_screenshot),
+            ("get_img_description", fun_get_img_description),
         ]
 
         for tool_name, underlying_function in test_cases:
@@ -73,11 +81,16 @@ class AgentTests(unittest.TestCase):
                 self.assertEqual(tool.description, underlying_doc.splitlines()[0])
 
                 expected_arg_docs = extract_google_style_args_section(underlying_doc)
-                self.assertTrue(expected_arg_docs, f"{underlying_function.__name__} must document Args:")
 
                 tool_schema = tool.params_json_schema
                 properties = tool_schema.get("properties", {})
 
+                if not underlying_function.__code__.co_argcount:
+                    self.assertFalse(expected_arg_docs)
+                    self.assertFalse(properties)
+                    continue
+
+                self.assertTrue(expected_arg_docs, f"{underlying_function.__name__} must document Args:")
                 self.assertEqual(set(properties.keys()), set(expected_arg_docs.keys()))
 
                 for arg_name, arg_doc in expected_arg_docs.items():

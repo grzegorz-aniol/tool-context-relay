@@ -64,6 +64,16 @@ SPEC = BoxingModeSpec(
           Tool result: "<excerpt>"
           Assistant: output the excerpt
 
+        - Read lines:
+          Tool result: {"type":"resource_link","uri":"internal://abc"}
+          Assistant: call `internal_resource_read_lines` with opaque_reference='{"type":"resource_link","uri":"internal://abc"}', start_line=10, line_count=3
+          Tool result: "line 11\nline 12\nline 13"
+
+        - Grep with context:
+          Tool result: {"type":"resource_link","uri":"internal://abc"}
+          Assistant: call `internal_resource_grep` with opaque_reference='{"type":"resource_link","uri":"internal://abc"}', pattern='timeout', window=2
+          Tool result: "Lines 10-15:\n10: ...\n11: ...\n12: timeout ...\n13: ...\n14: ...\n15: ..."
+
         - Large value chunking:
           Tool result: {"type":"resource_link","uri":"internal://abc"}
           Assistant: call `internal_resource_length` to get total length
@@ -101,6 +111,30 @@ SPEC = BoxingModeSpec(
                 opaque_reference (str): JSON string like `{"type":"resource_link","uri":"internal://<id>"}`.
             Returns:
                 str: The length as a string.
+            """
+        ).strip(),
+        "internal_resource_read_lines": dedent(
+            """
+            Resolve and return lines from an opaque reference.
+
+            Args:
+                opaque_reference (str): JSON string like `{"type":"resource_link","uri":"internal://<id>"}`.
+                start_line (int): Zero-based line index (negative counts from end).
+                line_count (int): Number of lines to return.
+            Returns:
+                str: The resolved lines joined with newlines.
+            """
+        ).strip(),
+        "internal_resource_grep": dedent(
+            """
+            Search inside an opaque reference and return matching lines with context.
+
+            Args:
+                opaque_reference (str): JSON string like `{"type":"resource_link","uri":"internal://<id>"}`.
+                pattern (str): Regex pattern to search for.
+                window (int): Number of context lines to include before and after matches.
+            Returns:
+                str: The matching lines with context.
             """
         ).strip(),
     },

@@ -681,14 +681,14 @@ def _run_from_files(
         results=results,
     )
     print(table_content, file=sys.stdout)
-    print(table_content, file=sys.stderr)
     sys.stdout.flush()
 
     if all_passed:
         print(f"All {total_files} file(s) passed.", file=sys.stdout)
         return 0
-    print("Some validations failed.", file=sys.stderr)
+    print("Some validations failed.", file=sys.stdout)
     return 1
+
 # Removed reason helpers since table no longer needs the column.
 def _sanitize_table_cell(value: str) -> str:
     sanitized = value.replace("\r", " ").replace("\n", " ").replace("|", "\\|")
@@ -703,9 +703,10 @@ def _format_validation_summary_table(
 ) -> str:
     fewshot_symbol = "✔" if fewshots else "-"
     sanitized_model = _sanitize_table_cell(model)
-    lines: list[str] = []
-    lines.append("| Model | Prompt Id | Few-shot | Resolve success |")
-    lines.append("| --- | --- | --- | --- |")
+    lines: list[str] = [
+        "| Model | Prompt Id | Few-shot | Resolve success |",
+        "| --- | --- | --- | --- |"
+    ]
     for result in results:
         prompt_id = result.case_id or str(result.file_path)
         sanitized_prompt_id = _sanitize_table_cell(prompt_id)
