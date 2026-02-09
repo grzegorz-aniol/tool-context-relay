@@ -320,49 +320,41 @@ Based on the tables above (limited experiments):
 
 Requires **Python 3.14+**.
 
-### Providers configuration
+### Environment configuration
 
-Setup in your `.env`
+- **Providers:** define one block per backend using uppercase prefixes (`OPENAI`, `OPENROUTER`, `LOCAL`). Each block can set `_API_KEY`/`_COMPAT_API_KEY`, `_MODEL`, `_BASE_URL`/`_BASEURL`/`_API_BASE`/`_ENDPOINT` (required for non-OpenAI providers), and `_BACKEND_PROVIDER`.
+- **Profiles:** the CLI looks for `<PROFILE>_PROVIDER`, `<PROFILE>_MODEL`, `<PROFILE>_TEMPERATURE`, and `<PROFILE>_BACKEND_PROVIDER`. Profile names are case-insensitive (e.g., `deepseek` matches `DEEPSEEK_...`). Set `TOOL_CONTEXT_RELAY_PROFILE` or `--profile` to choose the active profile; the default is `openai`.
+- **OpenRouter extras:** requests that target the `OPENROUTER` provider automatically add `provider.allow_fallbacks=false` and `provider.data_collection=deny`. Use `<PROVIDER>_BACKEND_PROVIDER` to choose a downstream backend (e.g., `OPENROUTER_BACKEND_PROVIDER=atlas-cloud/fp8`).
 
-```sh
-OPENAI_API_KEY=sk-proj-.............
-OPENAI_BASE_URL=https://api.openai.com/v1
-
-OPENROUTER_API_KEY=sk-..............
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-
-LLAMACPP_API_KEY=EMPTY
-LLAMACPP_BASE_URL=http://127.0.0.1:1234/v1
-```
-
-### Profile configuration
-
-Example of models setup in your `.env`:
+Simple `.env` example covering the three supported providers:
 
 ```sh
-# GPT models OpenAI (default profile)
+# provider definitions
+OPENAI_API_KEY="sk-your-openai-key"
+OPENAI_MODEL="gpt-4o"
+
+OPENROUTER_API_KEY="sk-your-openrouter-key"
+OPENROUTER_BASE_URL="https://openrouter.ai/v1"
+
+LOCAL_BASE_URL="http://127.0.0.1:1234/v1"
+LOCAL_MODEL="speaksleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q8_0.gguf"
+
+# profile wiring
 OPENAI_PROVIDER=openai
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-4o
 
-# Bielik (OpenAI-compatible server)
-BIELIK_PROVIDER=llamacpp
-BIELIK_MODEL=speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q8_0.gguf
-BIELIK_TEMPERATURE=0.1
-
-# Qwen (OpenAI-compatible server)
-QWEN_PROVIDER=llamacpp
-QWEN_MODEL=Qwen/Qwen3-8B-GGUF:Q8_0
-QWEN_TEMPERATURE=0.1
-
-QWEN14B_PROVIDER=llamacpp
-QWEN14B_MODEL=Qwen/Qwen3-14B-GGUF:Q8_0
-QWEN14B_TEMPERATURE=0.1
-
-# Deepseek models
 DEEPSEEK_PROVIDER=openrouter
-DEEPSEEK_MODEL=deepseek/deepseek-v3.2
-DEEPSEEK_BACKEND_PROVIDER=atlas-cloud/fp8
+DEEPSEEK_MODEL="deepseek/deepseek-v3.2"
+DEEPSEEK_BACKEND_PROVIDER="atlas-cloud/fp8"
+
+LOCAL_PROVIDER=local
+LOCAL_MODEL="speaksleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q8_0.gguf"
+LOCAL_TEMPERATURE=0.1
 ```
+
+Put all of these vars in `.env` (loaded automatically via `python-dotenv`) and switch profiles with `TOOL_CONTEXT_RELAY_PROFILE=<name>` or `--profile <name>`. Additional providers and profiles just reuse the same naming conventions described above.
+
+`.env.example` lists placeholders for the built-in profiles (`openai`, `deepseek`, `local`), so copy it before filling secrets.
 
 Install dependencies (needs network access):
 
@@ -437,14 +429,6 @@ You can also control colors via env vars:
 
 - Disable: `NO_COLOR=1` or `TOOL_CONTEXT_RELAY_NO_COLOR=1`
 - Force: `FORCE_COLOR=1`
-
-### Seed initial context
-
-`tool-context-relay "..." --set name=Ada`
-
-Run without syncing or activating a local venv:
-
-`uv tool run --from . tool-context-relay "..." --set name=Ada`
 
 ### Run tests
 
