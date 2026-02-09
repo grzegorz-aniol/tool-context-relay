@@ -55,7 +55,6 @@ def run_once(
     *,
     prompt: str,
     model: str,
-    initial_kv: dict[str, str],
     profile: str = "openai",
     profile_config: ProfileConfig | None = None,
     print_tools: bool = False,
@@ -93,7 +92,7 @@ def run_once(
     client = AsyncOpenAI(**client_kwargs)
     model_obj = OpenAIChatCompletionsModel(model=model, openai_client=client)
 
-    context = RelayContext(kv=dict(initial_kv), boxing_mode=boxing_mode)
+    context = RelayContext(boxing_mode=boxing_mode)
     agent = build_agent(
         model=model_obj,
         fewshots=fewshots,

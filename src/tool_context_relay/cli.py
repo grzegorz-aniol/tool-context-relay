@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, TextIO
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -36,17 +36,6 @@ class FileRunResult:
     reasons: list[str]
 
 
-
-def _parse_kv(pairs: list[str]) -> dict[str, str]:
-    kv: dict[str, str] = {}
-    for pair in pairs:
-        if "=" not in pair:
-            raise ValueError(f"invalid --set value (expected key=value): {pair}")
-        key, value = pair.split("=", 1)
-        if not key:
-            raise ValueError(f"invalid --set value (empty key): {pair}")
-        kv[key] = value
-    return kv
 
 
 def _normalize_model_for_agents(*, model: str) -> str:
@@ -222,7 +211,6 @@ def _run_single_prompt(
     model: str,
     profile: str,
     profile_config: ProfileConfig,
-    initial_kv: dict[str, str],
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
@@ -246,7 +234,6 @@ def _run_single_prompt(
     output, context = run_once(
         prompt=prompt,
         model=model,
-        initial_kv=initial_kv,
         profile=profile,
         profile_config=profile_config,
         print_tools=print_tools,
@@ -357,13 +344,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--set",
-        action="append",
-        default=[],
-        metavar="KEY=VALUE",
-        help="Seed initial context (repeatable).",
-    )
-    parser.add_argument(
         "--dump-context",
         action="store_true",
         help="Print final context as JSON to stderr.",
@@ -399,12 +379,6 @@ def main(argv: list[str] | None = None) -> int:
 
     # Propagate to the pretty emitter, and transitively to tool hooks.
     os.environ["TOOL_CONTEXT_RELAY_COLOR"] = args.color
-
-    try:
-        initial_kv = _parse_kv(args.set)
-    except ValueError as e:
-        print(str(e), file=sys.stderr)
-        return 2
 
     file_args: list[str] = [str(x) for x in (args.file or []) if str(x).strip()]
     glob_args: list[str] = [str(x) for x in (args.glob or []) if str(x).strip()]
@@ -495,7 +469,6 @@ def main(argv: list[str] | None = None) -> int:
                 model=model,
                 profile=profile,
                 profile_config=profile_config,
-                initial_kv=initial_kv,
                 print_tools=args.print_tools,
                 fewshots=args.fewshots,
                 show_system_instruction=args.show_system_instruction,
@@ -511,7 +484,6 @@ def main(argv: list[str] | None = None) -> int:
                 model=model,
                 profile=profile,
                 profile_config=profile_config,
-                initial_kv=initial_kv,
                 print_tools=args.print_tools,
                 fewshots=args.fewshots,
                 show_system_instruction=args.show_system_instruction,
@@ -536,7 +508,6 @@ def _run_literal_prompt(
     model: str,
     profile: str,
     profile_config: ProfileConfig,
-    initial_kv: dict[str, str],
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
@@ -553,7 +524,6 @@ def _run_literal_prompt(
     output, context = run_once(
         prompt=prompt,
         model=model,
-        initial_kv=initial_kv,
         profile=profile,
         profile_config=profile_config,
         print_tools=print_tools,
@@ -585,7 +555,6 @@ def _run_from_files(
     model: str,
     profile: str,
     profile_config: ProfileConfig,
-    initial_kv: dict[str, str],
     print_tools: bool,
     fewshots: bool,
     show_system_instruction: bool,
@@ -631,7 +600,6 @@ def _run_from_files(
             output, context = run_once(
                 prompt=prompt,
                 model=model,
-                initial_kv=initial_kv,
                 profile=profile,
                 profile_config=profile_config,
                 print_tools=print_tools,
@@ -705,14 +673,16 @@ def _run_from_files(
 
     sys.stdout.flush()
     sys.stderr.flush()
-    print(file=sys.stderr)
-    print("\x1b[0m", file=sys.stderr, end="")
-    _print_validation_summary_table(
+    print(file=sys.stdout)
+    print("\x1b[0m", file=sys.stdout, end="")
+    table_content = _format_validation_summary_table(
         model=model,
         fewshots=fewshots,
         results=results,
-        stream=sys.stderr,
     )
+    print(table_content, file=sys.stdout)
+    print(table_content, file=sys.stderr)
+    sys.stdout.flush()
 
     if all_passed:
         print(f"All {total_files} file(s) passed.", file=sys.stdout)
@@ -725,14 +695,12 @@ def _sanitize_table_cell(value: str) -> str:
     return sanitized.strip()
 
 
-def _print_validation_summary_table(
+def _format_validation_summary_table(
     *,
     model: str,
     fewshots: bool,
     results: list[FileRunResult],
-    stream: TextIO | None = None,
-) -> None:
-    resolved_stream = stream or sys.stdout
+) -> str:
     fewshot_symbol = "✔" if fewshots else "-"
     sanitized_model = _sanitize_table_cell(model)
     lines: list[str] = []
@@ -746,4 +714,4 @@ def _print_validation_summary_table(
             f"| {sanitized_model} | {sanitized_prompt_id} | {fewshot_symbol} | {resolve_symbol} |"
         )
 
-    print("\n".join(lines), file=resolved_stream)
+    return "\n".join(lines)

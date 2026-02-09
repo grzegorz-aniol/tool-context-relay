@@ -115,7 +115,7 @@ def test_scenarios_integration(
     _configure_profile_env(monkeypatch, profile)
 
     hooks = CaptureToolCalls()
-    run_once(prompt=prompt, model=model, initial_kv={}, profile=profile, hooks=hooks)
+    run_once(prompt=prompt, model=model, profile=profile, hooks=hooks)
 
     calls = hooks.tool_calls
 

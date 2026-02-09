@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tool_context_relay.cli import _parse_kv, _run_from_files, main, _validate_case
+from tool_context_relay.cli import _run_from_files, main, _validate_case
 from tool_context_relay.cli import _normalize_model_for_agents
 from tool_context_relay.cli import _format_startup_config_line
 from tool_context_relay.testing.integration_hooks import CapturedToolCall
@@ -262,14 +262,6 @@ class CliTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn("must set BIELIK_API_KEY", stderr.getvalue())
 
-    def test_parse_kv_ok(self):
-        self.assertEqual(_parse_kv(["a=1", "b=two=2"]), {"a": "1", "b": "two=2"})
-
-    def test_parse_kv_invalid(self):
-        for pairs in (["nope"], ["=x"], [""]):
-            with self.assertRaises(ValueError):
-                _parse_kv(pairs)
-
     def test_main_rejects_empty_prompt(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -411,14 +403,13 @@ class CliTests(unittest.TestCase):
                     model="gpt-4.1-mini",
                     profile="openai",
                     profile_config=load_profile("openai"),
-                    initial_kv={},
                     print_tools=False,
                     fewshots=False,
                     show_system_instruction=False,
                     temperature=None,
                     boxing_mode="opaque",
                     dump_context=False,
-            )
+                )
 
             self.assertEqual(code, 1)
             self.assertIn("| Model | Prompt Id | Few-shot | Resolve success |", stderr.getvalue())
