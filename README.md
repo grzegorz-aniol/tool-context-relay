@@ -101,6 +101,7 @@ Prompt cases in this repo (what they test):
 | 2         | `prompts/case2.md` | **Box + route**: transcript boxed → `google_drive_write_file` gets opaque reference unchanged; `deep_check` must not be called. |
 | 3         | `prompts/case3.md` | **Resolve only when needed (slice, not full read)**: boxed transcript → `deep_check`, then require **partial slicing** (`internal_resource_read_slice`) to answer a literal detail at the end (full read is forbidden). |
 | 4         | `prompts/case4.md` | **Mixed outputs**: boxed transcript → `deep_check`, then save transcript (opaque reference) and analysis (plain text) to Drive. |
+| web1      | `prompts/web1.md` | **Web page grep**: fetch a large HTML page (`get_page` boxed), then locate image elements via `internal_resource_grep` without full reads. |
 
 #### Example 0: short transcript → Deep Check (no boxing)
 
