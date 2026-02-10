@@ -164,6 +164,18 @@ Intended behavior (the prompt asks for this):
 3. `google_drive_write_file(file_content="internal://...", file_name="transcript.txt")`
 4. `google_drive_write_file(file_content="<analysis>", file_name="analysis.txt")` (tools can accept either plain text or an opaque reference)
 
+## Internal tools
+
+Internal tools operate on data referenced by an `internal://...` opaque ID so agents can inspect or extract portions of large values without exposing the full payload. These are useful when prompts must enforce partial reads (slice, grep, line reads) while forbidding full reads.
+
+| Tool | Arguments | Description                                                                                                                                         |
+|------|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `internal_resource_read` | `opaque_reference` | Resolve an opaque reference and return the full value. Use as a last resort, after trying slicing, when the agent needs the full value. |
+| `internal_resource_read_slice` | `opaque_reference`, `start_index`, `length` | Return a substring slice; supports negative `start_index` (Python-style) to count from the end.                                                     |
+| `internal_resource_length` | `opaque_reference` | Return the length of the resolved value.                                                                                                            |
+| `internal_resource_read_lines` | `opaque_reference`, `start_line`, `line_count` | Return a range of lines (zero-based `start_line`, negative counts from end).                                                                        |
+| `internal_resource_grep` | `opaque_reference`, `pattern`, `window` | Regex search with context lines before/after each match.                                                                                            |
+
 ## Test results
 
 <style>
