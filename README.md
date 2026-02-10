@@ -86,10 +86,11 @@ The important part is that long data moves between tools as an opaque reference 
 Prompt cases are Markdown files with YAML frontmatter. The frontmatter drives integration assertions:
 
 - `tool_calls`: ordered list of expected tool calls; repeated `tool_name` entries mean multiple expected calls
+  - `allow_multiple`: (per entry) if true, validation switches to counts (order-agnostic); tools with this flag are allowed to run more times than listed
 - `opaque_id_input`: (per entry) expects the call to receive a previously returned `internal://...` opaque reference as an argument value
 - `opaque_id_result`: (per entry) expects the call result to be an `internal://...` opaque reference
 - `forbidden_tools`: tool names that must not be called
-- `expect_internal_resolve`: whether `internal_resource_*` resolving calls are allowed/required
+  - Use this to block full reads (e.g., forbid `internal_resource_read`) or to require specific internal tools.
 
 Prompt cases in this repo (what they test):
 
@@ -98,7 +99,7 @@ Prompt cases in this repo (what they test):
 | 0         | `prompts/case0.md` | **No boxing**: uses `video_id='999'` which returns a short transcript in this PoC, so it stays below the boxing threshold and no `internal://...` opaque reference is used. |
 | 1         | `prompts/case1.md` | **Box + pass-through**: transcript boxed to `internal://...` → `deep_check` gets opaque reference unchanged (client unboxes internally). |
 | 2         | `prompts/case2.md` | **Box + route**: transcript boxed → `google_drive_write_file` gets opaque reference unchanged; `deep_check` must not be called. |
-| 3         | `prompts/case3.md` | **Resolve only when needed (slice, not full read)**: boxed transcript → `deep_check`, then use **partial slicing** (`internal_resource_read_slice`) to answer a literal detail at the end (avoid full unboxing). |
+| 3         | `prompts/case3.md` | **Resolve only when needed (slice, not full read)**: boxed transcript → `deep_check`, then require **partial slicing** (`internal_resource_read_slice`) to answer a literal detail at the end (full read is forbidden). |
 | 4         | `prompts/case4.md` | **Mixed outputs**: boxed transcript → `deep_check`, then save transcript (opaque reference) and analysis (plain text) to Drive. |
 
 #### Example 0: short transcript → Deep Check (no boxing)
@@ -146,7 +147,7 @@ Expected behavior:
 1. `yt_transcribe(...)` returns `internal://...`
 2. `deep_check(text="internal://...")` (pass-through)
 3. The model is allowed to resolve **only because the user asked for a literal detail**:
-   it can call `internal_resource_read_slice(opaque_reference="internal://...", ...)` (or `internal_resource_read`) to inspect the ending.
+   it must call `internal_resource_read_slice(opaque_reference="internal://...", ...)` to inspect the ending (full read is forbidden).
 
 #### Example 4: transcript → Deep Check → save both outputs (pass-through)
 
@@ -193,138 +194,151 @@ I tested Tool Context Relay with following models
 
 <div class="foo">
 
-| Model       | Prompt Id | Few-shot | Resolve success |
-|-------------|-----------|----------|-----------------|
-| gpt-4o-mini | 0         | -        | ✅               |
-| gpt-4o-mini | 1         | -        | ✅               |
-| gpt-4o-mini | 2         | -        | ❌               |
-| gpt-4o-mini | 3         | -        | ✅               |
-| gpt-4o-mini | 4         | -        | ❌               |
-| gpt-4o-mini | 0         | ✔        | ✅               |
-| gpt-4o-mini | 1         | ✔        | ✅               |
-| gpt-4o-mini | 2         | ✔        | ✅               |
-| gpt-4o-mini | 3         | ✔        | ✅               |
-| gpt-4o-mini | 4         | ✔        | ✅               |
+| Model       | Prompt Id | Few-shot | Validation |
+|-------------|-----------|----------|------------|
+| gpt-4o-mini | case0     | -        | ✅          |
+| gpt-4o-mini | case1     | -        | ✅          |
+| gpt-4o-mini | case2     | -        | ❌          |
+| gpt-4o-mini | case3     | -        | ❌          |
+| gpt-4o-mini | case4     | -        | ✅          |
+| gpt-4o-mini | web1      | -        | ✅          |
+| gpt-4o-mini | case0     | ✔        | ✅          |
+| gpt-4o-mini | case1     | ✔        | ✅          |
+| gpt-4o-mini | case2     | ✔        | ✅          |
+| gpt-4o-mini | case3     | ✔        | ❌          |
+| gpt-4o-mini | case4     | ✔        | ✅          |
+| gpt-4o-mini | web1      | ✔        | ✅          |
+
+| Model       | Prompt Id | Few-shot | Validation |
+|-------------|-----------|----------|---------------|
+| gpt-4o      | case0     | -        | ✅             |
+| gpt-4o      | case1     | -        | ✅             |
+| gpt-4o      | case2     | -        | ✅             |
+| gpt-4o      | case3     | -        | ✅             |
+| gpt-4o      | case4     | -        | ✅             |
+| gpt-4o      | web1      | -        | ✅             |
+| gpt-4o      | case0     | ✔        | ✅             |
+| gpt-4o      | case1     | ✔        | ✅             |
+| gpt-4o      | case2     | ✔        | ✅             |
+| gpt-4o      | case3     | ✔        | ✅             |
+| gpt-4o      | case4     | ✔        | ✅             |
+| gpt-4o      | web1      | ✔        | ✅             |
  
 
-| Model       | Prompt Id | Few-shot | Resolve success |
-|-------------|-----------|----------|-----------------|
-| gpt-4o      | 0         | -        | ✅               |
-| gpt-4o      | 1         | -        | ✅               |
-| gpt-4o      | 2         | -        | ✅               |
-| gpt-4o      | 3         | -        | ✅               |
-| gpt-4o      | 4         | -        | ✅               |
-| gpt-4o      | 0         | ✔        | ✅               |
-| gpt-4o      | 1         | ✔        | ✅               |
-| gpt-4o      | 2         | ✔        | ✅               |
-| gpt-4o      | 3         | ✔        | ✅               |
-| gpt-4o      | 4         | ✔        | ✅               |
- 
-
-| Model      | Prompt Id | Few-shot | Resolve success |
-|------------|-----------|----------|-----------------|
-| gpt-5-mini | 0         | -        | ✅               |
-| gpt-5-mini | 1         | -        | ✅               |
-| gpt-5-mini | 2         | -        | ❌               |
-| gpt-5-mini | 3         | -        | ✅               |
-| gpt-5-mini | 4         | -        | ✅               |
-| gpt-5-mini | 0         | ✔        | ✅               |
-| gpt-5-mini | 1         | ✔        | ✅               |
-| gpt-5-mini | 2         | ✔        | ✅               |
-| gpt-5-mini | 3         | ✔        | ✅               |
-| gpt-5-mini | 4         | ✔        | ✅               |
+| Model      | Prompt Id | Few-shot | Validation |
+|------------|-----------|----------|------------|
+| gpt-5-mini | case0     | -        | ✅          |
+| gpt-5-mini | case1     | -        | ✅          |
+| gpt-5-mini | case2     | -        | ✅          |
+| gpt-5-mini | case3     | -        | ✅          |
+| gpt-5-mini | case4     | -        | ✅          |
+| gpt-5-mini | web1      | -        | ✅          |
+| gpt-5-mini | case0     | ✔        | ✅          |
+| gpt-5-mini | case1     | ✔        | ✅          |
+| gpt-5-mini | case2     | ✔        | ✅          |
+| gpt-5-mini | case3     | ✔        | ✅          |
+| gpt-5-mini | case4     | ✔        | ✅          |
+| gpt-5-mini | web1      | ✔        | ✅          |
 
 
-| Model   | Prompt Id | Few-shot | Resolve success |
-|---------|-----------|----------|-----------------|
-| gpt-5.2 | 0         | -        | ✅               |
-| gpt-5.2 | 1         | -        | ✅               |
-| gpt-5.2 | 2         | -        | ✅               |
-| gpt-5.2 | 3         | -        | ✅               |
-| gpt-5.2 | 4         | -        | ✅               |
-| gpt-5.2 | 0         | ✔        | ✅               |
-| gpt-5.2 | 1         | ✔        | ✅               |
-| gpt-5.2 | 2         | ✔        | ✅               |
-| gpt-5.2 | 3         | ✔        | ✅               |
-| gpt-5.2 | 4         | ✔        | ✅               |
+| Model   | Prompt Id | Few-shot | Validation |
+|---------|-----------|----------|------------|
+| gpt-5.2 | case0     | -        | ✅          |
+| gpt-5.2 | case1     | -        | ✅          |
+| gpt-5.2 | case2     | -        | ✅          |
+| gpt-5.2 | case3     | -        | ✅          |
+| gpt-5.2 | case4     | -        | ✅          |
+| gpt-5.2 | web1      | -        | ✅          |
+| gpt-5.2 | case0     | ✔        | ✅          |
+| gpt-5.2 | case1     | ✔        | ✅          |
+| gpt-5.2 | case2     | ✔        | ✅          |
+| gpt-5.2 | case3     | ✔        | ✅          |
+| gpt-5.2 | case4     | ✔        | ✅          |
+| gpt-5.2 | web1      | ✔        | ✅          |
 
 ### Qwen 3 model
 
 #### Boxing method: opaque reference (default)
 
-| Model         | Prompt Id | Few-shot | Resolve success |
-|---------------|-----------|----------|-----------------|
-| qwen3-8b:Q8_0 | 0         | -        | ✅               |
-| qwen3-8b:Q8_0 | 1         | -        | ❌               |
-| qwen3-8b:Q8_0 | 2         | -        | ✅               |
-| qwen3-8b:Q8_0 | 3         | -        | ❌               |
-| qwen3-8b:Q8_0 | 4         | -        | ❌               |
-| qwen3-8b:Q8_0 | 0         | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 1         | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 2         | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 3         | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 4         | ✔        | ✅               |
+| Model                   | Prompt Id | Few-shot | Validation |
+|-------------------------|-----------|----------|------------|
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case0     | -        | ✅          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case1     | -        | ✅          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case2     | -        | ✅          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case3     | -        | ❌          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case4     | -        | ❌          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | web1      | -        | ✅          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case0     | ✔        | ✅          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case1     | ✔        | ✅          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case2     | ✔        | ✅          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case3     | ✔        | ✅          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | case4     | ✔        | ❌          |
+| Qwen/Qwen3-8B-GGUF:Q8_0 | web1      | ✔        | ❌          |
 
 
-| Model               | Prompt Id | Few-shot | Resolve success |
-|---------------------|-----------|----------|-----------------|
-| Qwen/Qwen3-14B:Q8_0 | case0     | -        | ✅               |
-| Qwen/Qwen3-14B:Q8_0 | case1     | -        | ✅               |
-| Qwen/Qwen3-14B:Q8_0 | case2     | -        | ❌               |
-| Qwen/Qwen3-14B:Q8_0 | case3     | -        | ❌               |
-| Qwen/Qwen3-14B:Q8_0 | case4     | -        | ❌               |
-| Qwen/Qwen3-14B:Q8_0 | case0     | ✔        | ✅               |
-| Qwen/Qwen3-14B:Q8_0 | case1     | ✔        | ✅               |
-| Qwen/Qwen3-14B:Q8_0 | case2     | ✔        | ✅               |
-| Qwen/Qwen3-14B:Q8_0 | case3     | ✔        | ✅               |
-| Qwen/Qwen3-14B:Q8_0 | case4     | ✔        | ❌               |
+| Model                    | Prompt Id | Few-shot | Validation |
+|--------------------------|-----------|----------|------------|
+| Qwen/Qwen3-14B:Q8_0      | case0     | -        | ✅          |
+| Qwen/Qwen3-14B:Q8_0      | case1     | -        | ✅          |
+| Qwen/Qwen3-14B:Q8_0      | case2     | -        | ❌          |
+| Qwen/Qwen3-14B:Q8_0      | case3     | -        | ❌          |
+| Qwen/Qwen3-14B:Q8_0      | case4     | -        | ❌          |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case0     | -        | ✅          |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case1     | -        | ✅          |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case2     | -        | ❌          |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case3     | -        | ✅          |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | case4     | -        | ❌          |
+| Qwen/Qwen3-14B-GGUF:Q8_0 | web1      | -        | ✅          |
 
 #### Alternative boxing method: JSON
 
- | Model         | Prompt Id | Few-shot | Resolve success |
-|---------------|-----------|----------|-----------------|
-| qwen3-8b:Q8_0 | 0         | -        | ✅               |
-| qwen3-8b:Q8_0 | 1         | -        | ❌               |
-| qwen3-8b:Q8_0 | 2         | -        | ❌               |
-| qwen3-8b:Q8_0 | 3         | -        | ✅               |
-| qwen3-8b:Q8_0 | 4         | -        | ❌               |
-| qwen3-8b:Q8_0 | 0         | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 1         | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 2         | ✔        | ✅               |
-| qwen3-8b:Q8_0 | 3         | ✔        | ❌               |
-| qwen3-8b:Q8_0 | 4         | ✔        | ✅               |
-
+ | Model         | Prompt Id | Few-shot | Validation |
+|---------------|-----------|----------|----------|
+| qwen3-8B:Q8_0 | case0     | -        | ✅        |
+| qwen3-8B:Q8_0 | case1     | -        | ❌        |
+| qwen3-8B:Q8_0 | case2     | -        | ❌        |
+| qwen3-8B:Q8_0 | case3     | -        | ✅        |
+| qwen3-8B:Q8_0 | case4     | -        | ❌        |
+| qwen3-8B:Q8_0 | case0     | ✔        | ✅        |
+| qwen3-8B:Q8_0 | case1     | ✔        | ✅        |
+| qwen3-8B:Q8_0 | case2     | ✔        | ✅        |
+| qwen3-8B:Q8_0 | case3     | ✔        | ❌        |
+| qwen3-8B:Q8_0 | case4     | ✔        | ✅        |
 
 ### Bielik v3 model
 
 
- | Model              | Prompt Id | Few-shot | Resolve success |
+ | Model              | Prompt Id | Few-shot | Validation |
 |--------------------|-----------|----------|-----------------|
-| Bielik-11b-v3:Q8_0 | 0         | -        | ✅               |
-| Bielik-11b-v3:Q8_0 | 1         | -        | ✅               |
-| Bielik-11b-v3:Q8_0 | 2         | -        | ✅               |
-| Bielik-11b-v3:Q8_0 | 3         | -        | ❌               |
-| Bielik-11b-v3:Q8_0 | 4         | -        | ❌               |
-| Bielik-11b-v3:Q8_0 | 0         | ✔        | ✅               |
-| Bielik-11b-v3:Q8_0 | 1         | ✔        | ✅               |
-| Bielik-11b-v3:Q8_0 | 2         | ✔        | ✅               |
-| Bielik-11b-v3:Q8_0 | 3         | ✔        | ❌               |
-| Bielik-11b-v3:Q8_0 | 4         | ✔        | ✅               |
+| Bielik-11B-v3:Q8_0 | case0     | -        | ✅               |
+| Bielik-11B-v3:Q8_0 | case1     | -        | ✅               |
+| Bielik-11B-v3:Q8_0 | case2     | -        | ✅               |
+| Bielik-11B-v3:Q8_0 | case3     | -        | ❌               |
+| Bielik-11B-v3:Q8_0 | case4     | -        | ❌               |
+| Bielik-11B-v3:Q8_0 | web1      | -        | ❌               |
+| Bielik-11B-v3:Q8_0 | case0     | ✔        | ✅               |
+| Bielik-11B-v3:Q8_0 | case1     | ✔        | ✅               |
+| Bielik-11B-v3:Q8_0 | case2     | ✔        | ✅               |
+| Bielik-11B-v3:Q8_0 | case3     | ✔        | ❌               |
+| Bielik-11B-v3:Q8_0 | case4     | ✔        | ✅               |
+| Bielik-11B-v3:Q8_0 | web1      | ✔        | ✅               |
 
 ### Deepseek
 
-| Model         | Prompt Id | Few-shot | Resolve success |
-|---------------|-----------|----------|-----------------|
-| deepseek-v3.2 | case0     | -        | ✅               |
-| deepseek-v3.2 | case1     | -        | ✅               |
-| deepseek-v3.2 | case2     | -        | ❌               |
-| deepseek-v3.2 | case3     | -        | ✅               |
-| deepseek-v3.2 | case4     | -        | ❌               |
-| deepseek-v3.2 | case0     | ✔        | ✅               |
-| deepseek-v3.2 | case1     | ✔        | ✅               |
-| deepseek-v3.2 | case2     | ✔        | ✅               |
-| deepseek-v3.2 | case3     | ✔        | ✅               |
-| deepseek-v3.2 | case4     | ✔        | ✅               |
+| Model                  | Prompt Id | Few-shot | Validation |
+|------------------------|-----------|----------|------------|
+| deepseek/deepseek-v3.2 | case0     | -        | ✅          |
+| deepseek/deepseek-v3.2 | case1     | -        | ✅          |
+| deepseek/deepseek-v3.2 | case2     | -        | ❌          |
+| deepseek/deepseek-v3.2 | case3     | -        | ✅          |
+| deepseek/deepseek-v3.2 | case4     | -        | ✅          |
+| deepseek/deepseek-v3.2 | web1      | -        | ❌          |
+| deepseek/deepseek-v3.2 | case0     | ✔        | ✅          |
+| deepseek/deepseek-v3.2 | case1     | ✔        | ✅          |
+| deepseek/deepseek-v3.2 | case2     | ✔        | ✅          |
+| deepseek/deepseek-v3.2 | case3     | ✔        | ❌          |
+| deepseek/deepseek-v3.2 | case4     | ✔        | ✅          |
+| deepseek/deepseek-v3.2 | web1      | ✔        | ✅          |
 
 
 </div>

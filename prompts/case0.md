@@ -7,6 +7,6 @@ tool_calls:
     opaque_id_input: false
 forbidden_tools:
   - google_drive_write_file
-expect_internal_resolve: false
+  - internal_resource_read
 ---
 Generate a transcript of the YouTube video with video_id='999' and then pass it to Deep Check for analysis.

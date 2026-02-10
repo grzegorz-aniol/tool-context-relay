@@ -7,6 +7,6 @@ tool_calls:
     opaque_id_input: true
 forbidden_tools:
   - deep_check
-expect_internal_resolve: false
+  - internal_resource_read
 ---
 Generate a transcript of the YouTube video with video_id='123' and save it to a file on Google Drive named 'transcript.txt'.

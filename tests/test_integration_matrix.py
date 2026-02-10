@@ -18,7 +18,6 @@ id: case1
 tool_calls:
   - tool_name: yt_transcribe
     opaque_id_result: true
-expect_internal_resolve: false
 """.strip(),
         body="hello",
     )
@@ -32,7 +31,7 @@ expect_internal_resolve: false
     )
 
     assert len(params) == 1
-    (profile, model, case_id, prompt, forbidden_tools, tool_calls, expect_internal_resolve) = params[0]
+    (profile, model, case_id, prompt, forbidden_tools, tool_calls) = params[0]
     assert profile == "openai"
     assert model == "Qwen/Qwen3-8B-GGUF:Q8_0"
     assert case_id == "case1"

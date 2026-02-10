@@ -91,7 +91,6 @@ def build_integration_matrix(
                         case.prompt,
                         case.forbidden_tools,
                         case.tool_calls,
-                        case.expect_internal_resolve,
                     )
                 )
                 ids.append(f"{profile}-{model}-{case.case_id}")

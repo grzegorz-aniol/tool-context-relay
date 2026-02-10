@@ -54,7 +54,6 @@ def pytest_generate_tests(metafunc) -> None:
             "prompt",
             "forbidden_tools",
             "tool_calls",
-            "expect_internal_resolve",
         ),
         params,
         ids=ids,

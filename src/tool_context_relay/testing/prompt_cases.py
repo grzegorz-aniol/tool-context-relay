@@ -11,6 +11,7 @@ class ToolCallExpectation:
     tool_name: str
     opaque_id_input: bool = False
     opaque_id_result: bool = False
+    allow_multiple: bool = False
 
 
 @dataclass(frozen=True)
@@ -19,7 +20,6 @@ class PromptCase:
     prompt: str
     forbidden_tools: set[str]
     tool_calls: list[ToolCallExpectation]
-    expect_internal_resolve: bool
 
 
 def _split_frontmatter(markdown: str) -> tuple[str, str]:
@@ -109,16 +109,20 @@ def _parse_tool_calls(value: object) -> list[ToolCallExpectation]:
 
         opaque_id_input = item.get("opaque_id_input", False)
         opaque_id_result = item.get("opaque_id_result", False)
+        allow_multiple = item.get("allow_multiple", False)
         if not isinstance(opaque_id_input, bool):
             raise TypeError(f"opaque_id_input must be a boolean (index {idx})")
         if not isinstance(opaque_id_result, bool):
             raise TypeError(f"opaque_id_result must be a boolean (index {idx})")
+        if not isinstance(allow_multiple, bool):
+            raise TypeError(f"allow_multiple must be a boolean (index {idx})")
 
         expectations.append(
             ToolCallExpectation(
                 tool_name=tool_name,
                 opaque_id_input=opaque_id_input,
                 opaque_id_result=opaque_id_result,
+                allow_multiple=allow_multiple,
             )
         )
 
@@ -137,16 +141,11 @@ def _parse_frontmatter_to_case(
     case_id = _normalize_case_id(str(frontmatter_obj.get("id") or case_id_source))
     forbidden_tools = _as_str_set(frontmatter_obj.get("forbidden_tools"))
     tool_calls = _parse_tool_calls(frontmatter_obj.get("tool_calls"))
-    expect_internal_resolve_raw = frontmatter_obj.get("expect_internal_resolve", False)
-    if not isinstance(expect_internal_resolve_raw, bool):
-        raise TypeError("expect_internal_resolve must be a boolean")
-
     return PromptCase(
         case_id=case_id,
         prompt=body,
         forbidden_tools=forbidden_tools,
         tool_calls=tool_calls,
-        expect_internal_resolve=expect_internal_resolve_raw,
     )
 
 
@@ -237,17 +236,12 @@ def load_prompt_cases(cases_dir: Path) -> list[PromptCase]:
         case_id = _normalize_case_id(str(frontmatter_obj.get("id") or path.stem))
         forbidden_tools = _as_str_set(frontmatter_obj.get("forbidden_tools"))
         tool_calls = _parse_tool_calls(frontmatter_obj.get("tool_calls"))
-        expect_internal_resolve_raw = frontmatter_obj.get("expect_internal_resolve", False)
-        if not isinstance(expect_internal_resolve_raw, bool):
-            raise TypeError(f"expect_internal_resolve must be a boolean in {path}")
-
         cases.append(
             PromptCase(
                 case_id=case_id,
                 prompt=body,
                 forbidden_tools=forbidden_tools,
                 tool_calls=tool_calls,
-                expect_internal_resolve=expect_internal_resolve_raw,
             )
         )
 

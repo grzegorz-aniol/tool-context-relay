@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from dataclasses import dataclass
 import json
 import os
@@ -99,38 +100,102 @@ def _assert_tool_calls_expectations(
     """Validate that tool calls match expectations."""
     from tool_context_relay.testing.prompt_cases import ToolCallExpectation
 
-    expected_tool_names = [exp.tool_name for exp in expectations]
+    typed_expectations = [exp for exp in expectations if isinstance(exp, ToolCallExpectation)]
+    expected_tool_names = [exp.tool_name for exp in typed_expectations]
     expected_tool_name_set = set(expected_tool_names)
-
     actual_relevant = [call for call in calls if call.name in expected_tool_name_set]
     actual_tool_names = [call.name for call in actual_relevant]
 
-    if actual_tool_names != expected_tool_names:
-        raise AssertionError(
-            "tool call sequence mismatch. "
-            f"expected={expected_tool_names!r}, actual={actual_tool_names!r}"
-        )
+    count_mode = any(exp.allow_multiple for exp in typed_expectations)
+    if not count_mode:
+        if actual_tool_names != expected_tool_names:
+            raise AssertionError(
+                "tool call sequence mismatch. "
+                f"expected={expected_tool_names!r}, actual={actual_tool_names!r}"
+            )
 
-    opaque_ids_seen: list[str] = []
-    for exp, call in zip(expectations, actual_relevant, strict=True):
-        if exp.opaque_id_input:
-            if not opaque_ids_seen:
-                raise AssertionError(
-                    f"expected {call.name} to use an opaque reference as input, but no previous opaque reference result exists"
-                )
-            uses_prev_opaque = any(value in opaque_ids_seen for value in call.arguments.values())
-            if not uses_prev_opaque:
-                raise AssertionError(
-                    f"expected {call.name} to receive a previous opaque reference as input; "
-                    f"known_opaque_ids={opaque_ids_seen!r}, arguments={call.arguments!r}"
-                )
+        opaque_ids_seen: list[str] = []
+        for exp, call in zip(typed_expectations, actual_relevant, strict=True):
+            if exp.opaque_id_input:
+                if not opaque_ids_seen:
+                    raise AssertionError(
+                        f"expected {call.name} to use an opaque reference as input, "
+                        "but no previous opaque reference result exists"
+                    )
+                uses_prev_opaque = any(value in opaque_ids_seen for value in call.arguments.values())
+                if not uses_prev_opaque:
+                    raise AssertionError(
+                        f"expected {call.name} to receive a previous opaque reference as input; "
+                        f"known_opaque_ids={opaque_ids_seen!r}, arguments={call.arguments!r}"
+                    )
 
-        if exp.opaque_id_result:
-            if not isinstance(call.result, str) or not call.result.strip():
-                raise AssertionError(f"expected {call.name} to return a string result, got {call.result!r}")
-            if not is_resource_id(call.result):
-                raise AssertionError(f"expected {call.name} result to be an opaque reference, got {call.result!r}")
-            opaque_ids_seen.append(call.result)
+            if exp.opaque_id_result:
+                if not isinstance(call.result, str) or not call.result.strip():
+                    raise AssertionError(f"expected {call.name} to return a string result, got {call.result!r}")
+                if not is_resource_id(call.result):
+                    raise AssertionError(
+                        f"expected {call.name} result to be an opaque reference, got {call.result!r}"
+                    )
+                opaque_ids_seen.append(call.result)
+
+        return opaque_ids_seen
+
+    expected_counts = Counter(expected_tool_names)
+    allow_multiple = {exp.tool_name for exp in typed_expectations if exp.allow_multiple}
+    actual_counts = Counter(actual_tool_names)
+
+    for tool_name, expected_count in expected_counts.items():
+        actual_count = actual_counts.get(tool_name, 0)
+        if tool_name in allow_multiple:
+            if actual_count < expected_count:
+                raise AssertionError(
+                    "tool call count mismatch. "
+                    f"expected at least {expected_count} for {tool_name!r}, got {actual_count!r}"
+                )
+        elif actual_count != expected_count:
+            raise AssertionError(
+                "tool call count mismatch. "
+                f"expected {expected_count} for {tool_name!r}, got {actual_count!r}"
+            )
+
+    opaque_result_expected = Counter(
+        exp.tool_name for exp in typed_expectations if exp.opaque_id_result
+    )
+    opaque_input_expected = Counter(
+        exp.tool_name for exp in typed_expectations if exp.opaque_id_input
+    )
+
+    opaque_ids_seen: list[str] = [
+        call.result
+        for call in actual_relevant
+        if isinstance(call.result, str) and is_resource_id(call.result)
+    ]
+    opaque_result_seen = Counter(
+        call.name
+        for call in actual_relevant
+        if isinstance(call.result, str) and is_resource_id(call.result)
+    )
+    opaque_input_seen = Counter()
+    if opaque_ids_seen:
+        for call in actual_relevant:
+            if call.name not in opaque_input_expected:
+                continue
+            if any(value in opaque_ids_seen for value in call.arguments.values()):
+                opaque_input_seen[call.name] += 1
+
+    for tool_name, expected_count in opaque_result_expected.items():
+        actual_count = opaque_result_seen.get(tool_name, 0)
+        if actual_count < expected_count:
+            raise AssertionError(
+                f"expected {tool_name} to return {expected_count} opaque reference(s), got {actual_count}"
+            )
+
+    for tool_name, expected_count in opaque_input_expected.items():
+        actual_count = opaque_input_seen.get(tool_name, 0)
+        if actual_count < expected_count:
+            raise AssertionError(
+                f"expected {tool_name} to receive {expected_count} opaque reference(s) as input, got {actual_count}"
+            )
 
     return opaque_ids_seen
 
@@ -147,7 +212,7 @@ def _validate_case(
 
     # If the file opted into validation but didn't specify any expectations,
     # treat this as "no tool calls expected" (matches the old integration behavior).
-    if not case.tool_calls and not case.forbidden_tools and not case.expect_internal_resolve:
+    if not case.tool_calls and not case.forbidden_tools:
         if calls:
             tool_names = sorted({call.name for call in calls})
             errors.append(f"expected no tool calls, got {tool_names!r}")
@@ -161,46 +226,11 @@ def _validate_case(
             errors.append(str(e))
 
     # Check tool call expectations
-    opaque_ids_seen: list[str] = []
     if case.tool_calls:
         try:
-            opaque_ids_seen = _assert_tool_calls_expectations(calls, case.tool_calls)
+            _assert_tool_calls_expectations(calls, case.tool_calls)
         except AssertionError as e:
             errors.append(str(e))
-
-    # Check internal resolve expectation
-    if case.expect_internal_resolve:
-        internal_tools = {"internal_resource_read", "internal_resource_read_slice", "internal_resource_length"}
-        internal_calls = [call for call in calls if call.name in internal_tools]
-        if not internal_calls:
-            errors.append("expected at least one internal_resource_* tool call to resolve transcript")
-            return errors
-
-        transcript_ref: str | None = opaque_ids_seen[0] if opaque_ids_seen else None
-        if transcript_ref is None:
-            for call in calls:
-                if call.name == "yt_transcribe" and isinstance(call.result, str) and call.result.strip():
-                    transcript_ref = call.result
-                    break
-
-        if transcript_ref is None:
-            errors.append("expected yt_transcribe to be called with a result, but could not find it")
-            return errors
-        if not is_resource_id(transcript_ref):
-            errors.append(f"expected yt_transcribe to return an opaque reference, got {transcript_ref!r}")
-            return errors
-
-        for call in internal_calls:
-            opaque_reference = call.arguments.get("opaque_reference")
-            if opaque_reference != transcript_ref:
-                errors.append(
-                    f"expected {call.name}.opaque_reference to equal {transcript_ref!r}, got {opaque_reference!r}"
-                )
-    else:
-        internal_tools = {"internal_resource_read", "internal_resource_read_slice", "internal_resource_length"}
-        internal_calls = [call for call in calls if call.name in internal_tools]
-        if internal_calls:
-            errors.append("expected no internal_resource_* tool calls, but some were made")
 
     return errors
 
@@ -704,8 +734,8 @@ def _format_validation_summary_table(
     fewshot_symbol = "✔" if fewshots else "-"
     sanitized_model = _sanitize_table_cell(model)
     lines: list[str] = [
-        "| Model | Prompt Id | Few-shot | Resolve success |",
-        "| --- | --- | --- | --- |"
+        "| Model | Prompt Id | Few-shot | Validation |",
+        "| --- | --- | --- | --- |",
     ]
     for result in results:
         prompt_id = result.case_id or str(result.file_path)

@@ -28,7 +28,7 @@ tool_calls:
     opaque_id_result: true
   - tool_name: deep_check
     opaque_id_input: true
-expect_internal_resolve: false
+    allow_multiple: true
 """.strip(),
         body="hello world",
     )
@@ -37,12 +37,13 @@ expect_internal_resolve: false
     assert case.case_id == "case1"
     assert case.prompt == "hello world"
     assert case.forbidden_tools == {"google_drive_write_file"}
-    assert case.expect_internal_resolve is False
     assert [exp.tool_name for exp in case.tool_calls] == ["yt_transcribe", "deep_check"]
     assert case.tool_calls[0].opaque_id_result is True
     assert case.tool_calls[0].opaque_id_input is False
+    assert case.tool_calls[0].allow_multiple is False
     assert case.tool_calls[1].opaque_id_input is True
     assert case.tool_calls[1].opaque_id_result is False
+    assert case.tool_calls[1].allow_multiple is True
 
 
 def test_load_prompt_cases_normalizes_numeric_case_id(tmp_path: Path) -> None:

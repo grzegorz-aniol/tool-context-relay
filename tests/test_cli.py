@@ -412,10 +412,10 @@ class CliTests(unittest.TestCase):
                 )
 
             self.assertEqual(code, 1)
-            self.assertIn("| Model | Prompt Id | Few-shot | Resolve success |", stderr.getvalue())
-            self.assertIn("passcase", stderr.getvalue())
-            self.assertIn("failcase", stderr.getvalue())
-            self.assertIn("broken.md", stderr.getvalue())
+            self.assertIn("| Model | Prompt Id | Few-shot | Validation |", stdout.getvalue())
+            self.assertIn("passcase", stdout.getvalue())
+            self.assertIn("failcase", stdout.getvalue())
+            self.assertIn("broken.md", stdout.getvalue())
             self.assertIn("tool call sequence mismatch", stderr.getvalue())
             self.assertIn("missing YAML frontmatter closing", stderr.getvalue())
 
@@ -425,10 +425,28 @@ class CliTests(unittest.TestCase):
             prompt="hi",
             forbidden_tools=set(),
             tool_calls=[ToolCallExpectation(tool_name="yt_transcribe", opaque_id_result=True)],
-            expect_internal_resolve=False,
         )
         result = box_value("x" * 2048, mode="json")
         calls = [CapturedToolCall(name="yt_transcribe", arguments={}, result=result)]
+
+        errors = _validate_case(case, calls)
+        self.assertEqual(errors, [])
+
+    def test_validate_case_allows_multiple_tool_calls_when_flagged(self):
+        case = PromptCase(
+            case_id="case1",
+            prompt="hi",
+            forbidden_tools=set(),
+            tool_calls=[
+                ToolCallExpectation(tool_name="get_page"),
+                ToolCallExpectation(tool_name="internal_resource_grep", allow_multiple=True),
+            ],
+        )
+        calls = [
+            CapturedToolCall(name="get_page", arguments={}, result=None),
+            CapturedToolCall(name="internal_resource_grep", arguments={}, result=None),
+            CapturedToolCall(name="internal_resource_grep", arguments={}, result=None),
+        ]
 
         errors = _validate_case(case, calls)
         self.assertEqual(errors, [])

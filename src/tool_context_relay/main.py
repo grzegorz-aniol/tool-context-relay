@@ -105,5 +105,5 @@ def run_once(
         print_tool_definitions(agent.tools, stream=sys.stderr)
     if hooks is None:
         hooks = RunHookHandler()
-    result = Runner.run_sync(agent, prompt, hooks=hooks, context=context)
+    result = Runner.run_sync(agent, prompt, max_turns=20, hooks=hooks, context=context)
     return result.final_output, context

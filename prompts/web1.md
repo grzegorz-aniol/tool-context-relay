@@ -3,8 +3,11 @@ id: web1
 tool_calls:
   - tool_name: get_page
     opaque_id_result: true
+  - tool_name: internal_resource_grep
+    opaque_id_input: true
+    allow_multiple: true
 forbidden_tools:
-expect_internal_resolve: false
+  - internal_resource_read
 ---
 Find all image elements in a HTML content at: https://demo.local/history
 
